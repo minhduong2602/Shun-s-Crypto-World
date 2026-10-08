@@ -70,4 +70,6 @@
 
 * { border-color: var(--border); }
 
-body { background: var(--background); color: var(--foreground); }
+html { color-scheme: dark; }
+
+body { min-height: 100vh; background: var(--background); color: var(--foreground); }
