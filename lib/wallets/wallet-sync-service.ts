@@ -38,7 +38,9 @@ export async function syncWalletAssets({
   wallet: SyncableWallet;
 }): Promise<Pick<Wallet, 'balanceUsd' | 'nativeBalance' | 'nativeSymbol' | 'tokensCount' | 'tokens'>> {
   const startedAt = new Date().toISOString();
+  const syncRunId = crypto.randomUUID();
   const run = await client.from('wallet_sync_runs').insert({
+    id: syncRunId,
     owner_id: ownerId,
     wallet_id: wallet.id,
     status: 'running',
@@ -91,7 +93,7 @@ export async function syncWalletAssets({
     }).eq('id', wallet.id));
     assertNoDatabaseError(await client.from('wallet_sync_runs').update({
       status: 'success', asset_count: tokens.length, completed_at: timestamp,
-    }).eq('wallet_id', wallet.id));
+    }).eq('id', syncRunId));
 
     return {
       balanceUsd: totalValue,
@@ -105,7 +107,7 @@ export async function syncWalletAssets({
       status: 'failed',
       error_message: error instanceof Error ? error.message : String(error),
       completed_at: new Date().toISOString(),
-    }).eq('wallet_id', wallet.id);
+    }).eq('id', syncRunId);
     throw error;
   }
 }
