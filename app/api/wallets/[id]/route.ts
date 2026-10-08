@@ -1,150 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
-import { getLiveWalletOnChain, scanCustomToken } from '@/lib/onchain-wallet-service';
+import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
+import { getServerSupabase } from '@/lib/supabase/server';
+import { mapWalletRow } from '@/lib/wallets/wallet-repository';
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+async function loadWallet(id: string, ownerId: string) {
+  const supabase = await getServerSupabase();
+  const { data, error } = await supabase
+    .from('wallets')
+    .select('*, wallet_assets(*)')
+    .eq('id', id)
+    .eq('owner_id', ownerId)
+    .maybeSingle();
+  if (error) throw error;
+  return { supabase, wallet: data ? mapWalletRow(data as unknown as Record<string, unknown>) : null };
+}
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await requireUser();
     const { id } = await params;
-    const wallet = db.getWalletById(id);
-
-    if (!wallet) {
-      return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
-    }
-
-    // If wallet has no tokens yet, scan once
-    if (!wallet.tokens || wallet.tokens.length === 0) {
-      const onChain = await getLiveWalletOnChain(wallet.chain, wallet.address);
-      const updated = db.updateWallet(id, {
-        tokens: onChain.tokens,
-        tokensCount: onChain.tokensCount,
-        balanceUsd: onChain.balanceUsd,
-        nativeBalance: onChain.nativeBalance,
-        lastSyncedAt: new Date().toISOString(),
-      });
-      return NextResponse.json({ wallet: updated || wallet });
-    }
-
+    const { wallet } = await loadWallet(id, user.id);
+    if (!wallet) return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
     return NextResponse.json({ wallet });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi tải chi tiết ví: ' + String(error) }, { status: 500 });
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xem ví' }, { status: 401 });
+    return NextResponse.json({ error: `Lỗi tải chi tiết ví: ${String(error)}` }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const user = await requireUser();
     const { id } = await params;
-    const removed = db.removeWallet(id);
-
-    if (!removed) {
-      return NextResponse.json({ error: 'Không tìm thấy ví cần xóa' }, { status: 404 });
+    const body = await req.json();
+    if (body.action === 'remove_token') {
+      return NextResponse.json(
+        { error: 'Danh mục token được đồng bộ từ blockchain; hãy ẩn token bằng bộ lọc giao diện thay vì xóa dữ liệu on-chain.' },
+        { status: 400 }
+      );
     }
+    if (typeof body.label !== 'string' || !body.label.trim()) {
+      return NextResponse.json({ error: 'Tên nhãn ví không hợp lệ' }, { status: 400 });
+    }
+    const { supabase } = await loadWallet(id, user.id);
+    const { error } = await supabase.from('wallets').update({ label: body.label.trim() }).eq('id', id).eq('owner_id', user.id);
+    if (error) throw error;
+    const { wallet } = await loadWallet(id, user.id);
+    if (!wallet) return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
+    return NextResponse.json({ success: true, wallet, message: 'Cập nhật ví thành công' });
+  } catch (error) {
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để cập nhật ví' }, { status: 401 });
+    return NextResponse.json({ error: `Lỗi cập nhật ví: ${String(error)}` }, { status: 500 });
+  }
+}
 
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await requireUser();
+    const { id } = await params;
+    const supabase = await getServerSupabase();
+    const { error } = await supabase.from('wallets').delete().eq('id', id).eq('owner_id', user.id);
+    if (error) throw error;
     return NextResponse.json({ success: true, message: 'Đã xóa ví thành công' });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi xóa ví: ' + String(error) }, { status: 500 });
-  }
-}
-
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const wallet = db.getWalletById(id);
-
-    if (!wallet) {
-      return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
-    }
-
-    const { contractAddress } = await req.json();
-    if (!contractAddress) {
-      return NextResponse.json({ error: 'Thiếu địa chỉ hợp đồng token' }, { status: 400 });
-    }
-
-    const customToken = await scanCustomToken(wallet.chain, wallet.address, contractAddress);
-    if (!customToken) {
-      return NextResponse.json({ error: 'Không tìm thấy số dư cho hợp đồng này hoặc mạng không hỗ trợ' }, { status: 400 });
-    }
-
-    const currentTokens = wallet.tokens || [];
-    // Replace or push
-    const existingIndex = currentTokens.findIndex((t) => t.contractAddress?.toLowerCase() === contractAddress.toLowerCase());
-    let nextTokens = [...currentTokens];
-    if (existingIndex >= 0) {
-      nextTokens[existingIndex] = customToken;
-    } else {
-      nextTokens.push(customToken);
-    }
-
-    const totalUsd = nextTokens.reduce((acc, t) => acc + t.balanceUsd, 0);
-    for (const t of nextTokens) {
-      t.allocationPercentage = totalUsd > 0 ? Number(((t.balanceUsd / totalUsd) * 100).toFixed(1)) : 0;
-    }
-    nextTokens.sort((a, b) => b.balanceUsd - a.balanceUsd);
-
-    const updated = db.updateWallet(id, {
-      tokens: nextTokens,
-      tokensCount: nextTokens.length,
-      balanceUsd: Number(totalUsd.toFixed(2)),
-      lastSyncedAt: new Date().toISOString(),
-    });
-
-    return NextResponse.json({
-      success: true,
-      token: customToken,
-      wallet: updated,
-      message: `Đã phát hiện token hợp đồng! Số dư: ${customToken.balance} ${customToken.symbol}`,
-    });
-  } catch (error) {
-    return NextResponse.json({ error: 'Lỗi quét token tùy chỉnh: ' + String(error) }, { status: 500 });
-  }
-}
-
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const wallet = db.getWalletById(id);
-
-    if (!wallet) {
-      return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
-    }
-
-    const body = await req.json();
-
-    // Check if removing a token
-    if (body.action === 'remove_token' && body.tokenId) {
-      const removed = db.removeWalletToken(id, body.tokenId);
-      const updated = db.getWalletById(id);
-      return NextResponse.json({
-        success: removed,
-        wallet: updated,
-        message: removed ? 'Đã gỡ token khỏi ví' : 'Không tìm thấy token để gỡ',
-      });
-    }
-
-    // Normal update (label, isActive)
-    const updates: Partial<typeof wallet> = {};
-    if (typeof body.label === 'string') updates.label = body.label.trim();
-    if (typeof body.isActive === 'boolean') updates.isActive = body.isActive;
-
-    const updated = db.updateWallet(id, updates);
-
-    return NextResponse.json({
-      success: true,
-      wallet: updated,
-      message: 'Cập nhật ví thành công',
-    });
-  } catch (error) {
-    return NextResponse.json({ error: 'Lỗi cập nhật ví: ' + String(error) }, { status: 500 });
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xóa ví' }, { status: 401 });
+    return NextResponse.json({ error: `Lỗi xóa ví: ${String(error)}` }, { status: 500 });
   }
 }

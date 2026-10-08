@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -10,13 +10,11 @@ import {
   Radio,
   Maximize2,
   Minimize2,
-  Activity,
   Layers,
   Sparkles,
   Sliders,
   Check,
   ChevronDown,
-  Zap,
   Globe,
   Flame,
 } from 'lucide-react';
@@ -104,11 +102,10 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
   onSelectCoin,
   baseCurrency,
 }) => {
-  // Mode: 'tradingview' (Official TV live widget) vs 'lightweight' (TradingView Lightweight Canvas + Live WS)
-  const [chartEngine, setChartEngine] = useState<'tradingview' | 'lightweight'>('tradingview');
   const [timeframe, setTimeframe] = useState<string>('15m');
   const [chartData, setChartData] = useState<OHLCVPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [livePrice, setLivePrice] = useState<number>(0);
   const [priceChange24h, setPriceChange24h] = useState<number>(0);
   const [high24h, setHigh24h] = useState<number>(0);
@@ -163,7 +160,17 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       try {
         const res = await fetch(`/api/market/chart?coinId=${activeSymbol}&timeframe=${timeframe}`);
         const json = await res.json();
-        if (isMounted && json.data && json.data.length > 0) {
+        if (!res.ok || !json.isLive || !Array.isArray(json.data) || json.data.length === 0) {
+          if (isMounted) {
+            setChartData([]);
+            setDataError(json.error || 'Nguồn giá trực tiếp hiện không phản hồi.');
+            setLivePrice(0);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setDataError(null);
           const rawData: OHLCVPoint[] = json.data;
           // Ensure strictly ascending timestamps
           const cleanData: OHLCVPoint[] = [];
@@ -218,7 +225,6 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
 
   // 2. Setup Lightweight Charts Canvas
   useEffect(() => {
-    if (chartEngine !== 'lightweight') return;
     if (!chartElementRef.current) return;
 
     // Clean up previous instance
@@ -349,11 +355,10 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       chart.remove();
       chartInstanceRef.current = null;
     };
-  }, [chartEngine]);
+  }, []);
 
   // 3. Update Chart Series when Data or Indicators change
   useEffect(() => {
-    if (chartEngine !== 'lightweight') return;
     if (!chartInstanceRef.current || !candleSeriesRef.current) return;
     if (chartData.length === 0) return;
 
@@ -390,11 +395,10 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
     }
 
     chartInstanceRef.current.timeScale().fitContent();
-  }, [chartData, showSMA20, showSMA50, showEMA200, showVolume, chartEngine]);
+  }, [chartData, showSMA20, showSMA50, showEMA200, showVolume]);
 
   // 4. Real-time Live Binance WebSocket Stream (Sub-second tick updates)
   useEffect(() => {
-    if (chartEngine !== 'lightweight') return;
     const pair = `${activeSymbol.toLowerCase()}usdt`;
 
     let wsInterval = '15m';
@@ -481,7 +485,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
         ws.close();
       }
     };
-  }, [activeSymbol, timeframe, chartEngine, showVolume]);
+  }, [activeSymbol, timeframe, showVolume]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -498,16 +502,6 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
   };
 
   const currentDisplayPoint = crosshairPoint || (chartData.length > 0 ? chartData[chartData.length - 1] : null);
-
-  const activeTimeframeObj = TIMEFRAMES.find((t) => t.id === timeframe) || TIMEFRAMES[2];
-
-  // TradingView Embed URL with comprehensive tools, dark theme, and high-frequency Binance streaming
-  const tradingViewEmbedUrl = useMemo(() => {
-    const symbolClean = activeSymbol.toUpperCase();
-    const tvInterval = activeTimeframeObj.tvInterval;
-    const studiesParam = encodeURIComponent(JSON.stringify(['MASimple@tv-basicstudies', 'RSI@tv-basicstudies']));
-    return `https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=BINANCE%3A${symbolClean}USDT&interval=${tvInterval}&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=161b22&studies=${studiesParam}&theme=dark&style=1&timezone=Asia%2FHo_Chi_Minh&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=vi_VN&utm_source=localhost`;
-  }, [activeSymbol, activeTimeframeObj]);
 
   return (
     <div
@@ -562,36 +556,8 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
           </form>
         </div>
 
-        {/* Right: Engine Switcher & Fullscreen */}
+        {/* Right: fullscreen */}
         <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-          {/* Chart Engine Switcher */}
-          <div className="flex items-center p-1 bg-[#090d12] rounded-xl border border-[#30363d] text-xs">
-            <button
-              onClick={() => setChartEngine('tradingview')}
-              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center space-x-1.5 ${
-                chartEngine === 'tradingview'
-                  ? 'bg-sky-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Biểu đồ TradingView Pro trực tiếp với đầy đủ công cụ vẽ, chỉ báo kỹ thuật RSI, MACD, MA"
-            >
-              <Activity className="w-3.5 h-3.5" />
-              <span>TradingView Pro Live</span>
-            </button>
-            <button
-              onClick={() => setChartEngine('lightweight')}
-              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center space-x-1.5 ${
-                chartEngine === 'lightweight'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-              title="Biểu đồ Canvas tốc độ cao với Binance WebSocket cập nhật từng tick thời gian thực"
-            >
-              <Zap className="w-3.5 h-3.5" />
-              <span>Lightweight Live WS</span>
-            </button>
-          </div>
-
           {/* Fullscreen Button */}
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
@@ -662,12 +628,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
 
           {/* Connection status badge */}
           <div className="flex items-center space-x-1.5 px-2.5 py-1 rounded-full bg-[#161b22] border border-[#30363d] text-[10px] font-mono">
-            {chartEngine === 'tradingview' ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse"></span>
-                <span className="text-sky-300 font-medium">TradingView Real-time WebSocket</span>
-              </>
-            ) : wsStatus === 'CONNECTED' ? (
+            {wsStatus === 'CONNECTED' ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span className="text-emerald-400 font-medium">Binance WS Stream (Từng tick)</span>
@@ -700,9 +661,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
             ))}
           </div>
 
-          {/* Indicator toggles for lightweight mode */}
-          {chartEngine === 'lightweight' && (
-            <div className="flex items-center space-x-1 text-[11px]">
+          <div className="flex items-center space-x-1 text-[11px]">
               <button
                 onClick={() => setShowSMA20(!showSMA20)}
                 className={`px-2 py-0.5 rounded font-mono font-semibold transition-colors ${
@@ -750,8 +709,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
               >
                 Fit
               </button>
-            </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -759,8 +717,8 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       {/* 3. CHART CANVAS & HUD OVERLAY */}
       {/* ======================================================== */}
       <div className="relative flex-1 min-h-[460px] sm:min-h-[540px] bg-[#090d12]">
-        {/* HUD Toolbar (Crosshair info) for lightweight mode */}
-        {chartEngine === 'lightweight' && currentDisplayPoint && (
+        {/* HUD Toolbar (crosshair information) */}
+        {currentDisplayPoint && (
           <div className="absolute top-2 left-3 z-20 flex items-center space-x-3 text-[11px] font-mono bg-[#161b22]/90 backdrop-blur-md px-3 py-1 rounded-lg border border-[#30363d]/80 pointer-events-none text-slate-300 flex-wrap gap-y-1">
             <span className="text-white font-bold">{activeSymbol}/USDT</span>
             <span>
@@ -803,23 +761,16 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
           </div>
         )}
 
-        {/* ENGINE 1: TRADINGVIEW OFFICIAL REAL-TIME EMBED */}
-        {chartEngine === 'tradingview' ? (
-          <div className="w-full h-full min-h-[480px] sm:min-h-[560px]">
-            <iframe
-              title={`TradingView ${activeSymbol}`}
-              src={tradingViewEmbedUrl}
-              className="w-full h-full min-h-[480px] sm:min-h-[560px] border-0"
-              allowFullScreen
-            />
+        {dataError && !loading && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-[#090d12]/85 px-6 text-center">
+            <div className="max-w-md rounded-xl border border-amber-500/30 bg-[#161b22] p-5 text-sm text-amber-200">
+              <p className="font-semibold">Không hiển thị dữ liệu mô phỏng</p>
+              <p className="mt-2 text-slate-300">{dataError}</p>
+            </div>
           </div>
-        ) : (
-          /* ENGINE 2: TRADINGVIEW LIGHTWEIGHT CHARTS CANVAS */
-          <div
-            ref={chartElementRef}
-            className="w-full h-full min-h-[480px] sm:min-h-[560px]"
-          />
         )}
+
+        <div ref={chartElementRef} className="w-full h-full min-h-[480px] sm:min-h-[560px]" />
       </div>
 
       {/* ======================================================== */}
@@ -828,26 +779,12 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       <div className="bg-[#161b22] border-t border-[#21262d] px-4 py-2 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
         <div className="flex items-center space-x-2">
           <span className="font-semibold text-slate-300">Nguồn cấp dữ liệu:</span>
-          <span className="text-emerald-400 font-mono font-medium">Binance Global Spot WebSocket &amp; MEXC v3 Klines</span>
+          <span className="text-emerald-400 font-mono font-medium">Binance/MEXC/OKX OHLCV, một nguồn dữ liệu duy nhất</span>
           <span>•</span>
           <span className="text-slate-400">Múi giờ: Asia/Ho_Chi_Minh (UTC+7)</span>
         </div>
 
-        <div className="flex items-center space-x-3">
-          <span className="text-slate-400">
-            Chế độ:{' '}
-            <strong className="text-white font-mono">
-              {chartEngine === 'tradingview' ? 'TradingView Pro Full Suite' : 'Lightweight Engine Canvas (Tick-by-Tick)'}
-            </strong>
-          </span>
-          <span>•</span>
-          <button
-            onClick={() => setChartEngine(chartEngine === 'tradingview' ? 'lightweight' : 'tradingview')}
-            className="text-sky-400 hover:text-sky-300 underline font-medium"
-          >
-            Đổi sang {chartEngine === 'tradingview' ? 'Lightweight Canvas' : 'TradingView Pro'}
-          </button>
-        </div>
+        <span className="text-slate-400">Giá hiển thị luôn là giá đóng cửa của cây nến mới nhất.</span>
       </div>
     </div>
   );

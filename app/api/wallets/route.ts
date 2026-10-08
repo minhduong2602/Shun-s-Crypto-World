@@ -1,11 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { getServerEnv } from '@/lib/config/env';
+import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
+import { getServerSupabase } from '@/lib/supabase/server';
 import { ChainType } from '@/lib/types';
-import { getLiveWalletOnChain, validateAddress } from '@/lib/onchain-wallet-service';
+import { validateAddress } from '@/lib/onchain-wallet-service';
+import { GoldRushWalletIndexer } from '@/lib/providers/goldrush-wallet-indexer';
+import { mapWalletRow, normalizeWalletAddress } from '@/lib/wallets/wallet-repository';
+import { syncWalletAssets, type WalletDatabaseClient } from '@/lib/wallets/wallet-sync-service';
 
 export async function GET() {
   try {
-    const wallets = db.getWallets();
+    const user = await requireUser();
+    const supabase = await getServerSupabase();
+    const { data, error } = await supabase
+      .from('wallets')
+      .select('*, wallet_assets(*)')
+      .eq('owner_id', user.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const wallets = ((data ?? []) as unknown as Record<string, unknown>[]).map(mapWalletRow);
     const totalWalletBalance = wallets.reduce((acc, w) => acc + w.balanceUsd, 0);
 
     return NextResponse.json({
@@ -19,6 +32,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const user = await requireUser();
     const body = await req.json();
     const { chain, address, label } = body;
 
@@ -45,33 +59,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Query actual on-chain balance from public RPC / explorer
-    const onChain = await getLiveWalletOnChain(chain as ChainType, trimmed);
+    const selectedChain = chain as ChainType;
+    const supabase = await getServerSupabase();
+    const { data: created, error: createError } = await supabase
+      .from('wallets')
+      .insert({
+        owner_id: user.id,
+        chain: selectedChain,
+        address: trimmed,
+        address_normalized: normalizeWalletAddress(selectedChain, trimmed),
+        label: label.trim(),
+        native_symbol: selectedChain === 'BTC' ? 'BTC' : selectedChain === 'SOL' ? 'SOL' : selectedChain === 'BSC' ? 'BNB' : 'ETH',
+      })
+      .select('*')
+      .single();
+    if (createError || !created) throw createError ?? new Error('Không thể tạo ví theo dõi');
 
-    const wallet = db.addWallet({
-      chain: chain as ChainType,
-      address: trimmed,
-      label: label.trim(),
-      isActive: true,
-      nativeBalance: onChain.nativeBalance,
-      nativeSymbol: onChain.nativeSymbol,
-      balanceUsd: onChain.balanceUsd,
-      tokensCount: onChain.tokensCount,
-      tokens: onChain.tokens,
+    const summary = await syncWalletAssets({
+      client: supabase as unknown as WalletDatabaseClient,
+      indexer: new GoldRushWalletIndexer({ apiKey: getServerEnv().GOLDRUSH_API_KEY ?? '' }),
+      ownerId: user.id,
+      wallet: { id: String((created as { id: string }).id), chain: selectedChain, address: trimmed },
     });
+    const { data: hydrated, error: hydrateError } = await supabase
+      .from('wallets')
+      .select('*, wallet_assets(*)')
+      .eq('id', String((created as { id: string }).id))
+      .single();
+    if (hydrateError || !hydrated) throw hydrateError ?? new Error('Không thể tải ví vừa quét');
+    const wallet = mapWalletRow(hydrated as unknown as Record<string, unknown>);
 
     return NextResponse.json({
       success: true,
       wallet,
-      message: `Đã kết nối ví chỉ xem! Quét được ${onChain.tokensCount} coins. Tổng giá trị: $${onChain.balanceUsd.toLocaleString()}`,
+      message: `Đã kết nối ví chỉ xem! Quét được ${summary.tokensCount} token. Tổng giá trị: $${summary.balanceUsd.toLocaleString()}`,
     });
   } catch (error) {
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để theo dõi ví' }, { status: 401 });
     return NextResponse.json({ error: 'Lỗi thêm ví view-only: ' + String(error) }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
+    const user = await requireUser();
     const { searchParams } = new URL(req.url);
     let id = searchParams.get('id');
 
@@ -88,13 +119,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Thiếu wallet ID hoặc địa chỉ ví' }, { status: 400 });
     }
 
-    const removed = db.removeWallet(id);
-    if (!removed) {
-      return NextResponse.json({ error: 'Không tìm thấy ví cần xóa trong hệ thống' }, { status: 404 });
-    }
+    const supabase = await getServerSupabase();
+    const { error } = await supabase.from('wallets').delete().eq('id', id).eq('owner_id', user.id);
+    if (error) throw error;
 
     return NextResponse.json({ success: true, message: 'Đã xóa ví khỏi danh sách theo dõi thành công' });
   } catch (error) {
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xóa ví' }, { status: 401 });
     return NextResponse.json({ error: 'Lỗi xóa ví: ' + String(error) }, { status: 500 });
   }
 }

@@ -9,6 +9,8 @@ export interface IndexedWalletAsset {
   name: string;
   decimals: number;
   rawBalance: string;
+  priceUsd?: number;
+  priceChange24h?: number;
 }
 
 export interface WalletScanRequest {
@@ -39,6 +41,8 @@ interface GoldRushItem {
   balance?: string;
   type?: string;
   is_spam?: boolean;
+  quote_rate?: number;
+  quote_rate_24h?: number;
 }
 
 interface GoldRushPage {
@@ -85,6 +89,10 @@ export class GoldRushWalletIndexer implements WalletIndexer {
           name: item.contract_name || item.contract_ticker_symbol || 'Unknown token',
           decimals: item.contract_decimals ?? 0,
           rawBalance: item.balance,
+          priceUsd: typeof item.quote_rate === 'number' && item.quote_rate >= 0 ? item.quote_rate : undefined,
+          priceChange24h: typeof item.quote_rate === 'number' && typeof item.quote_rate_24h === 'number' && item.quote_rate_24h > 0
+            ? Number((((item.quote_rate - item.quote_rate_24h) / item.quote_rate_24h) * 100).toFixed(4))
+            : undefined,
         });
       }
 
