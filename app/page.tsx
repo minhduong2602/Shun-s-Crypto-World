@@ -21,6 +21,14 @@ import {
   Transaction,
 } from '@/lib/types';
 
+function getApiErrorMessage(error: unknown): string | null {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+    return error.message;
+  }
+  return null;
+}
+
 export default function Home() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<AppTab>('portfolio');
@@ -120,7 +128,7 @@ export default function Home() {
         const failedRequest = [summaryRes, walletsRes, marketRes, authRes]
           .find((result) => !result.response.ok);
         if (failedRequest) {
-          throw new Error(failedRequest.data.error || 'Máy chủ từ chối yêu cầu tải dữ liệu.');
+          throw new Error(getApiErrorMessage(failedRequest.data.error) || 'Máy chủ từ chối yêu cầu tải dữ liệu.');
         }
 
         if (summaryRes.data.summary) setSummary(summaryRes.data.summary);

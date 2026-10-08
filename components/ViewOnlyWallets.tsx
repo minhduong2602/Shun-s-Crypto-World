@@ -42,37 +42,6 @@ interface ViewOnlyWalletsProps {
   onRefresh: () => void;
 }
 
-const SAMPLE_ADDRESSES: Record<ChainType, { address: string; label: string }> = {
-  ETH: {
-    address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
-    label: 'Vitalik Buterin (vitalik.eth)',
-  },
-  SOL: {
-    address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU',
-    label: 'Solana Foundation Staking',
-  },
-  BTC: {
-    address: 'bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq',
-    label: 'Bitcoin Vault Reserve',
-  },
-  BSC: {
-    address: '0x8894e0a0c962cb723c1976a4421c95949be2d4e3',
-    label: 'Binance Cold Storage',
-  },
-  POLYGON: {
-    address: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-    label: 'Polygon Bridge Vault',
-  },
-  ARBITRUM: {
-    address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
-    label: 'Arbitrum One Holding',
-  },
-  BASE: {
-    address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
-    label: 'Base Network Holding',
-  },
-};
-
 const EXPLORER_URLS: Record<ChainType, (addr: string) => string> = {
   ETH: (addr) => `https://etherscan.io/address/${addr}`,
   SOL: (addr) => `https://solscan.io/account/${addr}`,
@@ -279,14 +248,6 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
     } finally {
       setDeleting(false);
       setTimeout(() => setNotification(null), 5000);
-    }
-  };
-
-  const handleFillSample = () => {
-    const sample = SAMPLE_ADDRESSES[chain];
-    if (sample) {
-      setAddress(sample.address);
-      setLabel(sample.label);
     }
   };
 
@@ -1081,16 +1042,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <Label htmlFor="wallet-label">Tên nhãn gợi nhớ</Label>
-                  <Button variant="ghost" size="sm"
-                    type="button"
-                    onClick={handleFillSample}
-                    className="h-auto p-0 text-xs"
-                  >
-                    Điền ví mẫu để test
-                  </Button>
-                </div>
+                <Label className="mb-1 block" htmlFor="wallet-label">Tên nhãn gợi nhớ</Label>
                 <Input
                   type="text"
                   id="wallet-label"

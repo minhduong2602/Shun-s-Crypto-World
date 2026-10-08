@@ -37,4 +37,27 @@ describe('GET /api/market/tickers', () => {
       usdVndRateUpdatedAt: '2025-10-09T08:53:20.000Z',
     });
   });
+
+  it('keeps market tickers available when the optional watchlist query fails', async () => {
+    const query = { select: vi.fn(), eq: vi.fn() };
+    query.select.mockReturnValue(query);
+    query.eq.mockResolvedValue({ data: null, error: { message: 'market_watchlist table is unavailable' } });
+    getServerSupabaseMock.mockResolvedValue({ from: () => query });
+    getLiveTickersMock.mockResolvedValue([{ symbol: 'BTC', volume24hUsd: 100 }]);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ tickers: [{ symbol: 'BTC' }] });
+  });
+
+  it('keeps market tickers available when Supabase cannot initialize', async () => {
+    getServerSupabaseMock.mockRejectedValue(new Error('Supabase configuration unavailable'));
+    getLiveTickersMock.mockResolvedValue([{ symbol: 'BTC', volume24hUsd: 100 }]);
+
+    const response = await GET();
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ tickers: [{ symbol: 'BTC' }] });
+  });
 });

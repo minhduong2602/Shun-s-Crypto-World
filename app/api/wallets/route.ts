@@ -25,6 +25,7 @@ export async function GET() {
       totalWalletBalance: Number(totalWalletBalance.toFixed(2)),
     });
   } catch (error) {
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xem danh sách ví' }, { status: 401 });
     return NextResponse.json({ error: 'Lỗi tải danh sách ví: ' + String(error) }, { status: 500 });
   }
 }
@@ -130,8 +131,9 @@ export async function DELETE(req: NextRequest) {
     }
 
     const supabase = await getServerSupabase();
-    const { error } = await supabase.from('wallets').delete().eq('id', id).eq('owner_id', user.id);
+    const { data, error } = await supabase.from('wallets').delete().eq('id', id).eq('owner_id', user.id).select('id').maybeSingle();
     if (error) throw error;
+    if (!data) return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
 
     return NextResponse.json({ success: true, message: 'Đã xóa ví khỏi danh sách theo dõi thành công' });
   } catch (error) {

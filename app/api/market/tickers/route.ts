@@ -8,10 +8,17 @@ export async function GET() {
   try {
     const user = await requireUser();
     const [allTickers, exchangeRate] = await Promise.all([getLiveTickers(), getCoinGeckoUsdVndRate()]);
-    const supabase = await getServerSupabase();
-    const { data: watchlist, error } = await supabase.from('market_watchlist').select('symbol').eq('owner_id', user.id);
-    if (error) throw error;
-    const symbols = new Set((watchlist ?? []).map((row) => row.symbol));
+    const symbols = new Set<string>();
+    try {
+      const supabase = await getServerSupabase();
+      const { data: watchlist, error } = await supabase.from('market_watchlist').select('symbol').eq('owner_id', user.id);
+      if (error) console.warn('[MarketTickers] Could not load the user watchlist:', error);
+      for (const row of watchlist ?? []) symbols.add(row.symbol);
+    } catch (error) {
+      // Watchlist is an enhancement to the public market list. A missing table,
+      // policy/config issue, or transient Supabase failure must not take down prices.
+      console.warn('[MarketTickers] Could not initialize the watchlist query:', error);
+    }
     const tickers = [...new Map([
       ...allTickers.slice(0, 100),
       ...allTickers.filter((ticker) => symbols.has(ticker.symbol)),
@@ -30,6 +37,7 @@ export async function GET() {
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    return NextResponse.json({ error: 'Lỗi tải dữ liệu thị trường trực tiếp: ' + String(error) }, { status: 503 });
+    console.error('[MarketTickers] Failed to build market response:', error);
+    return NextResponse.json({ error: 'Không thể tải dữ liệu thị trường lúc này.' }, { status: 503 });
   }
 }

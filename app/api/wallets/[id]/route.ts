@@ -106,8 +106,9 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     const user = await requireUser();
     const { id } = await params;
     const supabase = await getServerSupabase();
-    const { error } = await supabase.from('wallets').delete().eq('id', id).eq('owner_id', user.id);
+    const { data, error } = await supabase.from('wallets').delete().eq('id', id).eq('owner_id', user.id).select('id').maybeSingle();
     if (error) throw error;
+    if (!data) return NextResponse.json({ error: 'Không tìm thấy ví' }, { status: 404 });
     return NextResponse.json({ success: true, message: 'Đã xóa ví thành công' });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xóa ví' }, { status: 401 });

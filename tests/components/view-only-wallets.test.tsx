@@ -91,4 +91,13 @@ describe('ViewOnlyWallets', () => {
     fireEvent.click(screen.getByRole('option', { name: 'Solana (SOL / SPL)' }));
     expect(screen.getByLabelText('Địa chỉ Ví công khai (Public Address)')).toHaveAttribute('placeholder', 'Địa chỉ Solana Base58...');
   });
+
+  it('keeps the add-wallet form free of sample addresses and sample wallet labels', async () => {
+    renderWallet();
+    fireEvent.click(screen.getByRole('button', { name: /Theo dõi địa chỉ mới/ }));
+
+    expect(screen.queryByRole('button', { name: 'Điền ví mẫu để test' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Tên nhãn gợi nhớ')).toHaveValue('');
+    expect(screen.getByLabelText('Địa chỉ Ví công khai (Public Address)')).toHaveValue('');
+  });
 });
