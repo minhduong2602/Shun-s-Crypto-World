@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell, type AppTab } from '@/components/app-shell';
+import { PortfolioDashboard } from '@/components/dashboard/portfolio-dashboard';
 import { PortfolioHero } from '@/components/PortfolioHero';
 import { HoldingsTable } from '@/components/HoldingsTable';
 import { AssetAllocationDonut } from '@/components/AssetAllocationDonut';
@@ -137,41 +138,7 @@ export default function Home() {
             {/* Tab: Portfolio Overview */}
             {activeTab === 'portfolio' && (
               <div>
-                <PortfolioHero
-                  summary={summary}
-                  baseCurrency={baseCurrency}
-                  onOpenAddTransaction={() => {
-                    setPreselectedCoin(null);
-                    setShowAddTxModal(true);
-                  }}
-                  onOpenWallets={() => setActiveTab('wallets')}
-                  onOpenAi={() => setActiveTab('ai')}
-                  onOpenAlerts={() => setShowTelegramModal(true)}
-                  onRefresh={loadData}
-                />
-
-                {/* Holdings Table */}
-                <HoldingsTable
-                  holdings={holdings}
-                  baseCurrency={baseCurrency}
-                  onSelectCoinForChart={handleSelectCoinForChart}
-                  onAddTransactionForCoin={handleOpenAddTxWithCoin}
-                  onRefresh={loadData}
-                />
-
-                {/* Donut Allocation */}
-                {holdings.length > 0 && (
-                  <div className="mt-8">
-                    <AssetAllocationDonut holdings={holdings} baseCurrency={baseCurrency} />
-                  </div>
-                )}
-
-                {/* Transactions Ledger */}
-                <TransactionHistory
-                  transactions={transactions}
-                  baseCurrency={baseCurrency}
-                  onRefresh={loadData}
-                />
+                <PortfolioDashboard summary={summary} holdings={holdings} wallets={wallets} loading={loading} />
               </div>
             )}
 

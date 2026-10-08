@@ -1,0 +1,20 @@
+import React from 'react';
+import { ArrowDownRight, ArrowUpRight, WalletCards } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import type { Holding, PortfolioSummary, Wallet } from '@/lib/types';
+
+const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });
+
+export function PortfolioDashboard({ summary, holdings, wallets, loading }: { summary: PortfolioSummary; holdings: Holding[]; wallets: Wallet[]; loading: boolean }) {
+  const changeUp = summary.change24hPercentage >= 0;
+  return <div className="grid gap-6">
+    <section className="grid gap-4 md:grid-cols-3">
+      <Card className="md:col-span-2"><CardHeader><CardDescription>Tổng giá trị danh mục</CardDescription><CardTitle className="text-3xl tabular-nums">{usd.format(summary.totalValueUsd)}</CardTitle></CardHeader><CardContent className="flex items-center gap-2 text-sm"><Badge variant={changeUp ? 'secondary' : 'destructive'} className={changeUp ? 'bg-emerald-500/15 text-emerald-500' : ''}>{changeUp ? <ArrowUpRight className="mr-1 size-3" /> : <ArrowDownRight className="mr-1 size-3" />}{summary.change24hPercentage.toFixed(2)}%</Badge><span className="text-muted-foreground">trong 24 giờ</span></CardContent></Card>
+      <Card><CardHeader><CardDescription>Ví đang theo dõi</CardDescription><CardTitle>{wallets.length}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{wallets.reduce((sum, wallet) => sum + wallet.tokensCount, 0)} token đã quét</CardContent></Card>
+    </section>
+    <Card><CardHeader><CardTitle>Tài sản</CardTitle><CardDescription>Định giá từ nguồn thị trường trực tiếp. Không tạo dữ liệu mô phỏng.</CardDescription></CardHeader><CardContent className="p-0"><Table><TableHeader><TableRow><TableHead>Tài sản</TableHead><TableHead className="text-right">Giá hiện tại</TableHead><TableHead className="text-right">24h</TableHead><TableHead className="text-right">Giá trị</TableHead></TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Đang tải danh mục…</TableCell></TableRow> : holdings.length === 0 ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">Chưa có tài sản. Hãy thêm ví hoặc giao dịch đầu tiên.</TableCell></TableRow> : holdings.map((holding) => <TableRow key={holding.id}><TableCell><div className="font-medium">{holding.name}</div><div className="text-xs text-muted-foreground">{holding.symbol}</div></TableCell><TableCell className="text-right tabular-nums">{usd.format(holding.currentPrice)}</TableCell><TableCell className="text-right"><span className={holding.priceChange24h >= 0 ? 'text-emerald-500' : 'text-destructive'}>{holding.priceChange24h.toFixed(2)}%</span></TableCell><TableCell className="text-right font-medium tabular-nums">{usd.format(holding.currentValue)}</TableCell></TableRow>)}</TableBody></Table></CardContent></Card>
+    <Card><CardHeader><div className="flex items-center gap-2"><WalletCards className="size-4 text-muted-foreground" /><CardTitle>Ví theo dõi</CardTitle></div><CardDescription>Chỉ xem — không bao giờ yêu cầu private key.</CardDescription></CardHeader><CardContent>{wallets.length === 0 ? <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Chưa có ví theo dõi</div> : <div className="grid gap-3 md:grid-cols-2">{wallets.map((wallet) => <div key={wallet.id} className="rounded-lg border p-4"><div className="flex items-center justify-between"><span className="font-medium">{wallet.label}</span><Badge variant="outline">{wallet.chain}</Badge></div><p className="mt-2 truncate font-mono text-xs text-muted-foreground">{wallet.address}</p><p className="mt-4 font-semibold tabular-nums">{usd.format(wallet.balanceUsd)}</p></div>)}</div>}</CardContent></Card>
+  </div>;
+}
