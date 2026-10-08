@@ -1,4 +1,4 @@
-import type { IndexedWalletAsset } from '@/lib/providers/goldrush-wallet-indexer';
+import type { IndexedWalletAsset } from '@/lib/providers/wallet-indexer';
 import type { WalletToken } from '@/lib/types';
 
 export type PricedIndexedWalletAsset = IndexedWalletAsset & {

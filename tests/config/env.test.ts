@@ -5,7 +5,7 @@ const fullEnv = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-key',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
-  GOLDRUSH_API_KEY: 'goldrush-key',
+  COINGECKO_DEMO_API_KEY: 'coingecko-key',
   TELEGRAM_BOT_TOKEN: 'telegram-token',
   CRON_SHARED_SECRET: 'cron-secret',
 };

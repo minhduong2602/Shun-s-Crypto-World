@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerEnv } from '@/lib/config/env';
 import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
 import { getServerSupabase } from '@/lib/supabase/server';
 import { ChainType } from '@/lib/types';
 import { validateAddress } from '@/lib/onchain-wallet-service';
-import { GoldRushWalletIndexer } from '@/lib/providers/goldrush-wallet-indexer';
+import { PublicWalletIndexer } from '@/lib/providers/public-wallet-indexer';
 import { mapWalletRow, normalizeWalletAddress } from '@/lib/wallets/wallet-repository';
 import { syncWalletAssets, type WalletDatabaseClient } from '@/lib/wallets/wallet-sync-service';
 
@@ -77,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     const summary = await syncWalletAssets({
       client: supabase as unknown as WalletDatabaseClient,
-      indexer: new GoldRushWalletIndexer({ apiKey: getServerEnv().GOLDRUSH_API_KEY ?? '' }),
+      indexer: new PublicWalletIndexer(),
       ownerId: user.id,
       wallet: { id: String((created as { id: string }).id), chain: selectedChain, address: trimmed },
     });

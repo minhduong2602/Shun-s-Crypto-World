@@ -54,7 +54,7 @@ authority.
   paths.
 - Each UI data request handles 401 with an authenticated empty/login state,
   instead of silently showing demo data.
-- Wallet scans are performed server-side with GoldRush, preserving raw balance
+- Wallet scans are performed server-side with public RPC/explorer adapters, preserving raw balance
   precision in `wallet_assets`; a full scan marks old rows inactive and upserts
   current fungible assets.
 - Portfolio holdings, transactions, alerts, settings and summary queries use
@@ -75,7 +75,7 @@ authority.
 - `vercel.json` defines the optional refresh schedule.
 - Vercel environment variables: `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
-  `GOLDRUSH_API_KEY`, `TELEGRAM_BOT_TOKEN`, `CRON_SHARED_SECRET`,
+  `COINGECKO_DEMO_API_KEY`, `TELEGRAM_BOT_TOKEN`, `CRON_SHARED_SECRET`,
   `GEMINI_API_KEY`, and `APP_URL`.
 - `APP_URL` points at the Vercel production URL. The same URL is added to
   Supabase Auth URL Configuration, along with the callback path.

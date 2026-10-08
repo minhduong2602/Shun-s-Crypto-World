@@ -1,5 +1,5 @@
 import type { ChainType, Wallet, WalletToken } from '@/lib/types';
-import type { WalletIndexer } from '@/lib/providers/goldrush-wallet-indexer';
+import type { WalletIndexer } from '@/lib/providers/wallet-indexer';
 import { mapIndexedAssetsToWalletTokens, totalWalletValue } from '@/lib/wallets/portfolio-mapper';
 
 type QueryResult = { error: { message: string } | null };
