@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Navbar } from '@/components/Navbar';
+import { AppShell, type AppTab } from '@/components/app-shell';
 import { PortfolioHero } from '@/components/PortfolioHero';
 import { HoldingsTable } from '@/components/HoldingsTable';
 import { AssetAllocationDonut } from '@/components/AssetAllocationDonut';
@@ -24,7 +24,7 @@ import {
 import { RefreshCw } from 'lucide-react';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'portfolio' | 'market' | 'chart' | 'wallets' | 'ai'>('portfolio');
+  const [activeTab, setActiveTab] = useState<AppTab>('portfolio');
   const [baseCurrency, setBaseCurrency] = useState<'USD' | 'VND'>('USD');
   const [selectedCoinId, setSelectedCoinId] = useState('bitcoin');
 
@@ -116,27 +116,10 @@ export default function Home() {
     setShowAddTxModal(true);
   };
 
-  const handleToggleCurrency = () => {
-    setBaseCurrency((prev) => (prev === 'USD' ? 'VND' : 'USD'));
-  };
+  const titles: Record<AppTab, string> = { portfolio: 'Danh mục', market: 'Thị trường', chart: 'Biểu đồ', wallets: 'Ví theo dõi', ai: 'Trợ lý AI' };
 
   return (
-    <div className="min-h-screen bg-[#090d12] text-slate-100 flex flex-col font-sans antialiased selection:bg-emerald-500 selection:text-slate-950">
-      {/* Navbar with CoinMarketCap global ticker bar */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={(t) => setActiveTab(t as any)}
-        twoFactorEnabled={twoFactorEnabled}
-        onOpen2FA={() => setShow2faModal(true)}
-        onOpenTelegram={() => setShowTelegramModal(true)}
-        telegramConfigured={telegramConfigured}
-        globalMetrics={globalMetrics}
-        baseCurrency={baseCurrency}
-        onToggleCurrency={handleToggleCurrency}
-      />
-
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <AppShell activeTab={activeTab} onTabChange={setActiveTab} title={titles[activeTab]} onRefresh={loadData}>
         {loading && holdings.length === 0 ? (
           <div className="h-96 flex flex-col items-center justify-center space-y-3 text-slate-400">
             <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
@@ -223,24 +206,6 @@ export default function Home() {
             )}
           </>
         )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-[#21262d] bg-[#0d1117] py-6 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-slate-300">Shun&apos;s Crypto World</span>
-            <span>•</span>
-            <span>Bảo mật đơn chủ cá nhân (Single User)</span>
-            <span>•</span>
-            <span className="text-emerald-400 font-mono">0% Hack Risk (Watch-Only)</span>
-          </div>
-          <div>
-            Powered by Next.js &amp; Gemini AI Intelligence.
-          </div>
-        </div>
-      </footer>
-
       {/* Modals */}
       <AddTransactionModal
         isOpen={showAddTxModal}
@@ -264,6 +229,6 @@ export default function Home() {
         twoFactorEnabled={twoFactorEnabled}
         onSuccess={loadData}
       />
-    </div>
+    </AppShell>
   );
 }
