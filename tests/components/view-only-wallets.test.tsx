@@ -35,7 +35,9 @@ describe('ViewOnlyWallets', () => {
     renderWallet();
     fireEvent.click(screen.getByRole('button', { name: 'Xem chi tiết ví Cold wallet' }));
 
-    expect(await screen.findByRole('table', { name: 'Danh sách token của ví Cold wallet' })).toBeInTheDocument();
+    const table = await screen.findByRole('table', { name: 'Danh sách token của ví Cold wallet' });
+    expect(table).toHaveClass('min-w-[900px]');
+    expect(table.parentElement?.parentElement).toHaveClass('overflow-x-auto');
   });
 
   it('warns that Solana token metadata is unverified and keeps the mint address visible', async () => {

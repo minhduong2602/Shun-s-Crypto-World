@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatPortfolioCurrency } from '@/lib/format-portfolio-currency';
@@ -44,6 +45,8 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
   const [filterView, setFilterView] = useState<'ALL' | 'FAVORITES'>('ALL');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [watchlistReady, setWatchlistReady] = useState(false);
+  const [watchlistError, setWatchlistError] = useState<string | null>(null);
+  const [watchlistRetry, setWatchlistRetry] = useState(0);
 
   // Add custom coin modal state
   const [showAddCoinModal, setShowAddCoinModal] = useState(false);
@@ -58,15 +61,21 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
   useEffect(() => {
     let cancelled = false;
     fetch('/api/market/watchlist').then(async (response) => {
-      if (!response.ok) throw new Error('Không tải được danh sách theo dõi');
-      return response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Không tải được danh sách theo dõi.');
+      return data;
     }).then((data) => {
-      if (!cancelled) setFavorites(new Set<string>(data.symbols ?? []));
-    }).catch((error) => console.error(error)).finally(() => {
+      if (!cancelled) {
+        setFavorites(new Set<string>(data.symbols ?? []));
+        setWatchlistError(null);
+      }
+    }).catch((error) => {
+      if (!cancelled) setWatchlistError(error instanceof Error ? error.message : 'Không tải được danh sách theo dõi.');
+    }).finally(() => {
       if (!cancelled) setWatchlistReady(true);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [watchlistRetry]);
 
   // Debounced search for adding new coin
   useEffect(() => {
@@ -94,7 +103,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
 
   const toggleFavorite = async (symbol: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!watchlistReady) return;
+    if (!watchlistReady || watchlistError) return;
     const adding = !favorites.has(symbol);
     const response = await fetch(adding ? '/api/market/watchlist' : `/api/market/watchlist?symbol=${encodeURIComponent(symbol)}`, {
       method: adding ? 'POST' : 'DELETE',
@@ -231,6 +240,18 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
           </Button>
         </div>
       </CardHeader>
+
+      {watchlistError && (
+        <Alert variant="destructive" className="m-4">
+          <AlertTitle>Danh sách theo dõi chưa khả dụng</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+            <span>{watchlistError}</span>
+            <Button variant="outline" size="sm" onClick={() => { setWatchlistReady(false); setWatchlistRetry((value) => value + 1); }}>
+              <RefreshCw className="size-3.5" /> Thử lại
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="overflow-x-auto">
         <Table>

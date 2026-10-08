@@ -8,6 +8,34 @@ afterEach(() => {
 });
 
 describe('TelegramAlertsModal', () => {
+  it('creates a secure bot deep link and confirms a completed pairing', async () => {
+    let alertLoads = 0;
+    const fetchMock = vi.fn().mockImplementation((url: string, options?: RequestInit) => {
+      if (url === '/api/alerts/telegram/connect') {
+        return Promise.resolve(Response.json({ botLink: 'https://t.me/portfolio_bot?start=pair-code' }));
+      }
+      if (url === '/api/alerts' && options?.method !== 'POST') {
+        alertLoads += 1;
+        return Promise.resolve(Response.json({
+          alerts: [], deliveries: [],
+          telegramConfig: alertLoads > 1 ? { chatId: '12345', enabled: true } : { chatId: '', enabled: false },
+        }));
+      }
+      return Promise.resolve(Response.json({}));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<TelegramAlertsModal isOpen onClose={vi.fn()} baseCurrency="USD" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Liên kết với Telegram' }));
+    const botLink = await screen.findByRole('link', { name: 'Mở bot và nhấn Start' });
+    expect(botLink).toHaveAttribute('href', 'https://t.me/portfolio_bot?start=pair-code');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tôi đã nhấn Start' }));
+
+    expect(await screen.findByText('Chat ID: 12345')).toBeInTheDocument();
+    expect(screen.getByText('Telegram đã liên kết và sẵn sàng nhận cảnh báo.')).toBeInTheDocument();
+  });
+
   it('shows recent Telegram delivery status and observed market values', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
       alerts: [{
@@ -29,6 +57,8 @@ describe('TelegramAlertsModal', () => {
     expect(screen.getByText('$67,123.50')).toBeInTheDocument();
     const historyTable = screen.getByRole('table', { name: 'Lịch sử gửi cảnh báo Telegram' });
     expect(within(historyTable).getByText('BTC')).toBeInTheDocument();
+    expect(historyTable).toHaveClass('min-w-[620px]');
+    expect(historyTable.parentElement?.parentElement).toHaveClass('overflow-x-auto');
   });
 
   it('does not present an empty alert list when loading alerts fails', async () => {

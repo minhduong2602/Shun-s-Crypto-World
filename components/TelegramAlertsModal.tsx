@@ -14,6 +14,7 @@ import {
   RefreshCw,
   ExternalLink,
   ShieldAlert,
+  Link2,
 } from 'lucide-react';
 import { PriceAlert, AlertCondition } from '@/lib/types';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -58,7 +59,10 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
     createdAt: string;
   }>>([]);
   const [chatId, setChatId] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [telegramEnabled, setTelegramEnabled] = useState(false);
+  const [botLink, setBotLink] = useState<string | null>(null);
+  const [creatingBotLink, setCreatingBotLink] = useState(false);
+  const [checkingBotLink, setCheckingBotLink] = useState(false);
   const [testingMsg, setTestingMsg] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null);
   const [newAlertError, setNewAlertError] = useState<string | null>(null);
@@ -95,12 +99,47 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       if (Array.isArray(data.deliveries)) setDeliveries(data.deliveries);
       if (data.telegramConfig) {
         setChatId(data.telegramConfig.chatId || '');
+        setTelegramEnabled(Boolean(data.telegramConfig.enabled));
       }
       setAlertLoadError(null);
     } catch (error) {
       setAlertLoadError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
     }
   }
+
+  const handleCreateBotLink = async () => {
+    setCreatingBotLink(true);
+    setTestResult(null);
+    try {
+      const res = await fetch('/api/alerts/telegram/connect', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || typeof data.botLink !== 'string') throw new Error(data.error || 'Không thể tạo liên kết Telegram');
+      setBotLink(data.botLink);
+      setTestResult({ success: true, msg: 'Đã tạo liên kết ghép cặp. Mở bot và nhấn Start trong 15 phút.' });
+    } catch (error) {
+      setTestResult({ success: false, msg: error instanceof Error ? error.message : 'Không thể kết nối máy chủ' });
+    } finally {
+      setCreatingBotLink(false);
+    }
+  };
+
+  const handleCheckBotLink = async () => {
+    setCheckingBotLink(true);
+    try {
+      const res = await fetch('/api/alerts');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Không thể kiểm tra liên kết Telegram');
+      const linkedChatId = data.telegramConfig?.chatId || '';
+      const enabled = Boolean(data.telegramConfig?.enabled && linkedChatId);
+      setChatId(linkedChatId);
+      setTelegramEnabled(enabled);
+      setTestResult({ success: enabled, msg: enabled ? 'Telegram đã liên kết và sẵn sàng nhận cảnh báo.' : 'Chưa nhận được lệnh Start từ bot. Hãy mở liên kết bot rồi thử lại.' });
+    } catch (error) {
+      setTestResult({ success: false, msg: error instanceof Error ? error.message : 'Không thể kết nối máy chủ' });
+    } finally {
+      setCheckingBotLink(false);
+    }
+  };
 
   const handleStartEdit = (alt: PriceAlert) => {
     setEditingAlertId(alt.id);
@@ -135,29 +174,6 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
     }
   };
 
-  const handleSaveConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setTestResult(null);
-    try {
-      const res = await fetch('/api/alerts/test-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, saveOnly: true }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setTestResult({ success: true, msg: 'Đã lưu cấu hình Telegram Bot thành công!' });
-      } else {
-        setTestResult({ success: false, msg: data.error || 'Lỗi lưu thông tin' });
-      }
-    } catch (e) {
-      setTestResult({ success: false, msg: 'Không thể kết nối máy chủ' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleTestPing = async () => {
     setTestingMsg(true);
     setTestResult(null);
@@ -165,7 +181,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       const res = await fetch('/api/alerts/test-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId, saveOnly: false }),
+        body: JSON.stringify({}),
       });
       const data = await res.json();
       if (res.ok) {
@@ -258,14 +274,17 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
         <Card className="mt-5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Kết nối Telegram</CardTitle>
-            <CardDescription>Bot token được quản lý an toàn trên server; nhập Chat ID nhận thông báo.</CardDescription>
+            <CardDescription>Liên kết tài khoản Telegram trực tiếp với bot — không cần tự tìm hay nhập Chat ID.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="telegram-chat-id">Telegram Chat ID</Label>
-              <Input id="telegram-chat-id" inputMode="numeric" placeholder="VD: 984512340" value={chatId} onChange={(e) => setChatId(e.target.value)} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={telegramEnabled ? 'default' : 'secondary'}>
+                <span className={`mr-1.5 size-2 rounded-full ${telegramEnabled ? 'bg-emerald-300' : 'bg-muted-foreground'}`} />
+                {telegramEnabled ? 'Đã liên kết' : 'Chưa liên kết'}
+              </Badge>
+              {telegramEnabled && <span className="text-xs text-muted-foreground">Chat ID: {chatId}</span>}
             </div>
-            <p className="text-xs text-muted-foreground">Lấy Chat ID bằng bot @userinfobot. Máy chủ cần cấu hình TELEGRAM_BOT_TOKEN.</p>
+            <p className="text-xs text-muted-foreground">Bot token chỉ được lưu phía server. Tạo liên kết, mở bot và nhấn Start để hoàn tất ghép cặp.</p>
 
           {testResult && (
             <Alert variant={testResult.success ? 'default' : 'destructive'}>
@@ -278,22 +297,20 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             </Alert>
           )}
 
-          <div className="flex flex-wrap justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleSaveConfig}
-              disabled={loading}
-            >
-              {loading ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}Lưu Chat ID
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={handleCreateBotLink} disabled={creatingBotLink}>
+              {creatingBotLink ? <RefreshCw className="size-4 animate-spin" /> : <Link2 className="size-4" />}
+              {telegramEnabled ? 'Liên kết lại bot' : 'Liên kết với Telegram'}
             </Button>
-            <Button
-              type="button"
-              onClick={handleTestPing}
-              disabled={testingMsg}
-            >
-              {testingMsg ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}Gửi tin nhắn thử
-            </Button>
+            {botLink && <a href={botLink} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium hover:bg-accent">
+              <ExternalLink className="size-4" />Mở bot và nhấn Start
+            </a>}
+            {botLink && <Button type="button" variant="outline" onClick={handleCheckBotLink} disabled={checkingBotLink}>
+              {checkingBotLink ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Tôi đã nhấn Start
+            </Button>}
+            {telegramEnabled && <Button type="button" variant="outline" onClick={handleTestPing} disabled={testingMsg}>
+              {testingMsg ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}Gửi tin thử
+            </Button>}
           </div>
           </CardContent>
         </Card>
@@ -492,7 +509,8 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             <CardDescription>Tối đa 25 lần đánh giá cảnh báo gần nhất, gồm cả lần gửi lỗi hoặc bị bỏ qua.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <Table aria-label="Lịch sử gửi cảnh báo Telegram">
+            <div className="max-w-full overflow-x-auto">
+              <Table aria-label="Lịch sử gửi cảnh báo Telegram" className="min-w-[620px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Thời gian</TableHead>
@@ -520,7 +538,8 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                   );
                 })}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </DialogContent>

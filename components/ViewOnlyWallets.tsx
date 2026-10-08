@@ -536,14 +536,14 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
       {/* ============================================================ */}
       <Dialog open={Boolean(selectedWallet)} onOpenChange={(open) => { if (!open) setSelectedWallet(null); }}>
         {selectedWallet && (
-          <DialogContent className="max-w-4xl overflow-hidden border-border bg-card p-0 text-card-foreground">
+          <DialogContent className="w-[calc(100%-1rem)] max-w-4xl overflow-hidden border-border bg-card p-0 text-card-foreground">
             <DialogTitle className="sr-only">Ví {selectedWallet.label}</DialogTitle>
             <DialogDescription className="sr-only">Chi tiết số dư và token của ví {selectedWallet.label}.</DialogDescription>
-            <div className="flex max-h-[90vh] flex-col overflow-hidden">
+            <div className="flex max-h-[90vh] min-w-0 flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-start justify-between border-b bg-muted/30 p-5 sm:p-6">
-              <div>
-                <div className="flex items-center space-x-2.5">
+            <div className="flex flex-col gap-3 border-b bg-muted/30 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+              <div className="min-w-0">
+                <div className="flex min-w-0 flex-wrap items-center gap-2.5">
                   <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 font-mono text-emerald-400">
                     {selectedWallet.chain}
                   </Badge>
@@ -556,8 +556,8 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                 </div>
 
                 {/* Address bar with copy & explorer link */}
-                <div className="mt-2.5 flex items-center space-x-2 text-xs">
-                  <span className="rounded-md border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground">
+                <div className="mt-2.5 flex min-w-0 items-center gap-2 text-xs">
+                  <span className="min-w-0 truncate rounded-md border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground" title={selectedWallet.address}>
                     {selectedWallet.address}
                   </span>
                   <Button
@@ -587,7 +587,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
                 <Button variant="outline" size="sm"
                   onClick={(e) => handleSync(selectedWallet.id, e)}
                   disabled={syncingId === selectedWallet.id}
@@ -617,7 +617,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
+            <div className="min-w-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-6">
               {/* Wallet Summary Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Card className="p-3.5">
@@ -730,8 +730,8 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
               </div>
 
               {/* COIN LIST TABLE */}
-              <div className="overflow-hidden rounded-lg border border-border bg-card">
-                  <Table className="text-left text-xs" aria-label={`Danh sách token của ví ${selectedWallet.label}`}>
+              <div className="max-w-full overflow-x-auto rounded-lg border border-border bg-card">
+                  <Table className="min-w-[900px] text-left text-xs" aria-label={`Danh sách token của ví ${selectedWallet.label}`}>
                     <TableHeader className="bg-muted/60 uppercase text-[10px] tracking-wider">
                       <TableRow>
                         <TableHead className="px-4">Tài sản (Coin/Token)</TableHead>

@@ -15,10 +15,12 @@ do not replace existing project values with examples or commit secrets.
    app only signs in existing Supabase users; there is no registration form.
 3. Configure the production Site URL and allowed redirect URLs for the Vercel
    domain. Login uses password auth, not magic-link email delivery.
-4. Run migrations `202610090001` through `202610090010` in order. They create
+4. Run migrations `202610090001` through `202610090011` in order. They create
    the user-owned portfolio schema, RLS, wallet sync, alert delivery claims,
-   snapshots, retention and cron functions. Verify the schema and scheduled
-   jobs before enabling production use.
+   snapshots, retention and cron functions. Migration `202610090011` also
+   repairs the watchlist table, RLS policy and authenticated-role grants if
+   SQL was previously applied manually. Verify the schema and scheduled jobs
+   before enabling production use.
 
 ### If SQL was already run manually
 
@@ -99,14 +101,18 @@ not reject the dedicated cron bearer token first.
 1. Create a bot with Telegram's official BotFather and set its token as the
    server-only `TELEGRAM_BOT_TOKEN` in Vercel and Supabase Edge Function
    secrets. Do not store the bot token in `user_settings`.
-2. Open the bot in Telegram and send `/start` so it can message the account.
-3. In the app, open **Cảnh báo Telegram**, enter the chat ID, and use the test
-   message action. A successful test stores that user's Chat ID and enables
-   Telegram alerts.
-4. Create a one-time or recurring alert for a ticker or a wallet asset. Wallet
-   asset alerts use chain + contract/mint identity; manual ticker alerts use
-   the ticker lookup. Conditions include above/below price and 24-hour
-   percentage movement.
+2. In Vercel, set `APP_URL` to the public HTTPS app origin and set
+   `TELEGRAM_WEBHOOK_SECRET` to a random 1–256 character value containing only
+   letters, numbers, `_`, or `-`. Keep both server-only and redeploy.
+3. In the app, open **Cảnh báo Telegram** and choose **Liên kết với Telegram**.
+   The app verifies the bot and registers its webhook automatically. Open the
+   generated link, tap **Start**, return to the app and confirm the pairing.
+   Pairing codes expire after 15 minutes, can be used once, and are stored as
+   SHA-256 hashes. The webhook accepts private chats only.
+4. Send a test message, then create a one-time or recurring alert for a ticker
+   or wallet asset. Wallet asset alerts use chain + contract/mint identity;
+   manual ticker alerts use the ticker lookup. Conditions include above/below
+   price and 24-hour percentage movement.
 5. Confirm `portfolio-telegram-alerts` is enabled in Supabase Cron, then check
    the app's alert delivery history for `sent`, `failed`, or `skipped` results.
 

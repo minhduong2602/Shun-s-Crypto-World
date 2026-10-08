@@ -32,16 +32,34 @@ describe('Home dashboard data loading', () => {
   });
 
   it('redirects an expired Supabase session to login instead of presenting an empty portfolio', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);
       if (path === '/api/auth/status') return Response.json({ error: 'Unauthorized' }, { status: 401 });
       if (path === '/api/settings') return Response.json({ baseCurrency: 'USD' });
+      return Response.json({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<Home />);
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/login'));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).not.toHaveBeenCalledWith('/api/portfolio/summary');
+  });
+
+  it('does not parse non-JSON API errors into an unexpected-end message', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path === '/api/settings') return Response.json({ baseCurrency: 'USD' });
+      if (path === '/api/auth/status') return new Response('<html>environment error</html>', { status: 503 });
       return Response.json({});
     }));
 
     render(<Home />);
 
-    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/login'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không thể xác thực phiên đăng nhập');
+    expect(screen.queryByText('Dashboard holdings: 0')).not.toBeInTheDocument();
   });
 
   it('shows the server error and retry action when a portfolio data endpoint fails', async () => {

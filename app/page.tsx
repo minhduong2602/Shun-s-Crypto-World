@@ -105,27 +105,32 @@ export default function Home() {
     let ignore = false;
     const fetchJson = async (path: string) => {
       const response = await fetch(path);
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
       return { response, data };
     };
 
     async function startFetch(): Promise<void> {
       try {
-        const [summaryRes, walletsRes, marketRes, authRes] = await Promise.all([
-          fetchJson('/api/portfolio/summary'),
-          fetchJson('/api/wallets'),
-          fetchJson('/api/market/tickers'),
-          fetchJson('/api/auth/status'),
-        ]);
-
+        const authRes = await fetchJson('/api/auth/status');
         if (ignore) return;
 
         if (authRes.response.status === 401 || (authRes.response.ok && !authRes.data.isAuthenticated)) {
           router.replace('/login');
           return;
         }
+        if (!authRes.response.ok) {
+          throw new Error(getApiErrorMessage(authRes.data.error) || 'Không thể xác thực phiên đăng nhập.');
+        }
 
-        const failedRequest = [summaryRes, walletsRes, marketRes, authRes]
+        const [summaryRes, walletsRes, marketRes] = await Promise.all([
+          fetchJson('/api/portfolio/summary'),
+          fetchJson('/api/wallets'),
+          fetchJson('/api/market/tickers'),
+        ]);
+
+        if (ignore) return;
+
+        const failedRequest = [summaryRes, walletsRes, marketRes]
           .find((result) => !result.response.ok);
         if (failedRequest) {
           throw new Error(getApiErrorMessage(failedRequest.data.error) || 'Máy chủ từ chối yêu cầu tải dữ liệu.');
@@ -182,7 +187,7 @@ export default function Home() {
   return (
     <AppShell activeTab={activeTab} onTabChange={setActiveTab} title={titles[activeTab]} baseCurrency={baseCurrency} onBaseCurrencyChange={handleBaseCurrencyChange} onRefresh={loadData} onAddTransaction={handleAddTransaction} onOpenAlerts={() => setShowTelegramModal(true)} onLogout={handleLogout}>
         <DataStatus error={dataError} onRetry={loadData} />
-        {loading && holdings.length === 0 ? (
+        {dataError ? null : loading && holdings.length === 0 ? (
           <div role="status" aria-label="Đang tải dữ liệu danh mục" className="space-y-4">
             <span className="sr-only">Đang tải dữ liệu danh mục…</span>
             <div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 md:col-span-2" /><Skeleton className="h-32" /></div>

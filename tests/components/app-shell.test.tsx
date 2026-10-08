@@ -43,4 +43,23 @@ describe('AppShell', () => {
     expect(screen.getByRole('link', { name: 'Data provided by CoinGecko' }))
       .toHaveAttribute('href', 'https://www.coingecko.com/en/api');
   });
+
+  it('keeps compact mobile header actions accessible by name', () => {
+    render(<AppShell
+      activeTab="portfolio"
+      onTabChange={() => {}}
+      title="Danh mục"
+      baseCurrency="USD"
+      onBaseCurrencyChange={() => {}}
+      onOpenAlerts={() => {}}
+      onAddTransaction={() => {}}
+      onRefresh={() => {}}
+      onLogout={() => {}}
+    >Nội dung</AppShell>);
+
+    expect(screen.getByRole('button', { name: 'Cảnh báo Telegram' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Giao dịch' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Đồng bộ dữ liệu' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Đăng xuất' })).toBeInTheDocument();
+  });
 });

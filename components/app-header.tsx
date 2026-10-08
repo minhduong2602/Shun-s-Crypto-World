@@ -7,20 +7,22 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function AppHeader({ title, baseCurrency, onBaseCurrencyChange, onMenu, onRefresh, onAddTransaction, onOpenAlerts, onLogout }: { title: string; baseCurrency?: 'USD' | 'VND'; onBaseCurrencyChange?: (currency: 'USD' | 'VND') => void; onMenu: () => void; onRefresh?: () => void; onAddTransaction?: () => void; onOpenAlerts?: () => void; onLogout?: () => void }) {
-  return <header className="flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur md:px-6">
-    <Button variant="ghost" size="icon" className="md:hidden" aria-label="Mở điều hướng" onClick={onMenu}><Menu className="size-5" /></Button>
-    <h1 className="text-lg font-semibold">{title}</h1>
-    <div className="ml-auto flex items-center gap-2">
+  return <header className="flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 border-b bg-background/95 px-3 py-2 backdrop-blur md:h-16 md:flex-nowrap md:px-6 md:py-0">
+    <div className="flex min-w-0 items-center gap-2">
+      <Button variant="ghost" size="icon" className="size-9 shrink-0 md:hidden" aria-label="Mở điều hướng" onClick={onMenu}><Menu className="size-5" /></Button>
+      <h1 className="truncate text-base font-semibold md:text-lg">{title}</h1>
+    </div>
+    <div className="flex w-full min-w-0 items-center justify-between gap-1 md:ml-auto md:w-auto md:justify-end md:gap-2">
       {baseCurrency && onBaseCurrencyChange && <Tabs value={baseCurrency} onValueChange={(value) => onBaseCurrencyChange(value as 'USD' | 'VND')}>
-        <TabsList aria-label="Đơn vị tiền tệ hiển thị" className="h-8">
-          <TabsTrigger value="USD" className="h-6 px-2 text-xs">USD</TabsTrigger>
-          <TabsTrigger value="VND" className="h-6 px-2 text-xs">VND</TabsTrigger>
+        <TabsList aria-label="Đơn vị tiền tệ hiển thị" className="h-8 shrink-0">
+          <TabsTrigger value="USD" className="h-6 px-1.5 text-[11px] sm:px-2">USD</TabsTrigger>
+          <TabsTrigger value="VND" className="h-6 px-1.5 text-[11px] sm:px-2">VND</TabsTrigger>
         </TabsList>
       </Tabs>}
-      {onOpenAlerts && <Button variant="ghost" size="icon" aria-label="Cảnh báo Telegram" title="Cảnh báo Telegram" onClick={onOpenAlerts}><Bell className="size-4" /></Button>}
-      {onAddTransaction && <Button size="sm" className="gap-2" onClick={onAddTransaction}><Plus className="size-4" /><span className="hidden sm:inline">Giao dịch</span></Button>}
-      {onRefresh && <Button variant="outline" size="sm" aria-label="Đồng bộ dữ liệu" title="Đồng bộ dữ liệu" onClick={onRefresh}><RefreshCw className="size-4" /><span className="hidden sm:inline">Đồng bộ</span></Button>}
-      {onLogout && <Button variant="ghost" size="icon" aria-label="Đăng xuất" title="Đăng xuất" onClick={onLogout}><LogOut className="size-4" /></Button>}
+      {onOpenAlerts && <Button variant="ghost" size="icon" className="size-9 shrink-0" aria-label="Cảnh báo Telegram" title="Cảnh báo Telegram" onClick={onOpenAlerts}><Bell className="size-4" /></Button>}
+      {onAddTransaction && <Button size="sm" className="size-9 shrink-0 p-0 md:h-8 md:w-auto md:px-3" aria-label="Giao dịch" onClick={onAddTransaction}><Plus className="size-4" /><span className="hidden sm:inline">Giao dịch</span></Button>}
+      {onRefresh && <Button variant="outline" size="sm" className="size-9 shrink-0 p-0 md:h-8 md:w-auto md:px-3" aria-label="Đồng bộ dữ liệu" title="Đồng bộ dữ liệu" onClick={onRefresh}><RefreshCw className="size-4" /><span className="hidden sm:inline">Đồng bộ</span></Button>}
+      {onLogout && <Button variant="ghost" size="icon" className="size-9 shrink-0" aria-label="Đăng xuất" title="Đăng xuất" onClick={onLogout}><LogOut className="size-4" /></Button>}
     </div>
   </header>;
 }

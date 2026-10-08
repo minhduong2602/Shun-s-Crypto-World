@@ -11,6 +11,8 @@ const serverEnvSchema = publicEnvSchema.extend({
   COINGECKO_DEMO_API_KEY_2: z.string().min(1).optional(),
   COINGECKO_DEMO_API_KEY_3: z.string().min(1).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().regex(/^[A-Za-z0-9_-]{1,256}$/).optional(),
+  APP_URL: z.string().url().optional(),
   CRON_SHARED_SECRET: z.string().min(1).optional(),
 });
 

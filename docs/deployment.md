@@ -11,6 +11,7 @@ Preview environment variables in Vercel; do not commit their values:
 - `COINGECKO_DEMO_API_KEY`
 - `COINGECKO_DEMO_API_KEY_2` and `COINGECKO_DEMO_API_KEY_3` (optional round-robin keys for ticker and wallet-token pricing)
 - `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET` (1–256 chars, letters/numbers/underscore/hyphen only)
 - `CRON_SHARED_SECRET`
 - `GEMINI_API_KEY`
 - `APP_URL` (the final Vercel production URL)
@@ -55,6 +56,10 @@ the initial portfolio schema.
 transactions, user settings, or current wallet assets. Confirm
 `portfolio-data-retention` exists in Supabase Database → Cron after applying
 the migration.
+
+`202610090011_repair_market_watchlist.sql` is safe to run against an existing
+project. It creates the watchlist table if missing and reapplies its owner-only
+RLS policy and authenticated-role grants without deleting saved symbols.
 
 `202610090004_wallet_auto_sync_cron.sql` installs a Supabase Cron job that
 queues wallet sync every 15 minutes. It processes up to five wallets per run,
@@ -151,10 +156,12 @@ alerts use the selected wallet asset's chain and contract address, while manual
 ticker alerts use CoinGecko's Demo `/coins/markets` endpoint. Configured keys are
 rotated server-side. Stored wallet prices are never substituted for a failed
 live request; percentage alerts are skipped if the quote lacks valid 24-hour
-change data. Configure the same bot token
-as a server-only Vercel environment variable so users can send a connection
-test; each user stores only their own Telegram Chat ID in `user_settings`.
-Supabase owns scheduled delivery and idempotent alert claims.
+change data. Configure the same bot token as a server-only Vercel environment
+variable. `APP_URL` must be the public HTTPS deployment origin. The app
+registers `/api/telegram/webhook` with Telegram using `TELEGRAM_WEBHOOK_SECRET`;
+never expose either secret to the browser. Each user stores only their own
+Telegram Chat ID in `user_settings`. Supabase owns scheduled delivery and
+idempotent alert claims.
 
 Apply `202610090005_alert_delivery_retry.sql` to enable atomic delivery claims.
 Failed Telegram requests can retry within the same alert cooldown bucket; a

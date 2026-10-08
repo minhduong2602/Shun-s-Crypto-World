@@ -2,6 +2,26 @@ import { NextResponse } from 'next/server';
 import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
 import { getServerSupabase } from '@/lib/supabase/server';
 
+function watchlistErrorResponse(error: unknown, operation: string) {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+  console.error(`[MarketWatchlist] ${operation} failed:`, error);
+
+  if (code === '42P01' || code === 'PGRST205') {
+    return NextResponse.json({
+      error: 'Bảng market_watchlist chưa sẵn sàng. Hãy áp dụng migration 202610090011.',
+      code: 'WATCHLIST_SCHEMA_NOT_READY',
+    }, { status: 503 });
+  }
+  if (code === '42501') {
+    return NextResponse.json({
+      error: 'Tài khoản chưa có quyền truy cập danh sách theo dõi. Hãy áp dụng migration 202610090011.',
+      code: 'WATCHLIST_PERMISSION_DENIED',
+    }, { status: 503 });
+  }
+
+  return NextResponse.json({ error: 'Không thể truy cập danh sách theo dõi lúc này.', code: 'WATCHLIST_UNAVAILABLE' }, { status: 500 });
+}
+
 export async function GET() {
   try {
     const user = await requireUser();
@@ -11,7 +31,7 @@ export async function GET() {
     return NextResponse.json({ symbols: (data ?? []).map((row) => row.symbol) });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    return NextResponse.json({ error: 'Không thể tải danh sách theo dõi.' }, { status: 500 });
+    return watchlistErrorResponse(error, 'GET');
   }
 }
 
@@ -27,7 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, symbol });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    return NextResponse.json({ error: 'Không thể thêm mã vào danh sách theo dõi.' }, { status: 500 });
+    return watchlistErrorResponse(error, 'POST');
   }
 }
 
@@ -42,6 +62,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true, symbol });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    return NextResponse.json({ error: 'Không thể xóa mã khỏi danh sách theo dõi.' }, { status: 500 });
+    return watchlistErrorResponse(error, 'DELETE');
   }
 }
