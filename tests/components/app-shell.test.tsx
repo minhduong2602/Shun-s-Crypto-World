@@ -1,6 +1,6 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { AppShell } from '@/components/app-shell';
 
 describe('AppShell', () => {
@@ -16,5 +16,31 @@ describe('AppShell', () => {
     expect(screen.getAllByRole('button', { name: 'Biểu đồ' }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: 'Ví' }).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Mở điều hướng' })).toBeInTheDocument();
+  });
+
+  it('exposes a base currency switch and reports changes', () => {
+    const onCurrencyChange = vi.fn();
+    function Harness() {
+      const [currency, setCurrency] = React.useState<'USD' | 'VND'>('USD');
+      return <AppShell activeTab="portfolio" onTabChange={() => {}} title="Danh mục" baseCurrency={currency} onBaseCurrencyChange={(nextCurrency) => { onCurrencyChange(nextCurrency); setCurrency(nextCurrency); }}><p>Nội dung</p></AppShell>;
+    }
+    render(
+      <Harness />
+    );
+
+    const vndTab = screen.getByRole('tab', { name: 'VND' });
+    fireEvent.mouseDown(vndTab, { button: 0 });
+
+    expect(onCurrencyChange).toHaveBeenCalledWith('VND');
+    expect(vndTab).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('shows linked CoinGecko attribution in the shared application shell', () => {
+    render(<AppShell activeTab="portfolio" onTabChange={() => {}} title="Danh mục" baseCurrency="VND">
+      <p>Nội dung</p>
+    </AppShell>);
+
+    expect(screen.getByRole('link', { name: 'Data provided by CoinGecko' }))
+      .toHaveAttribute('href', 'https://www.coingecko.com/en/api');
   });
 });

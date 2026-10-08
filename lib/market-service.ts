@@ -1,4 +1,6 @@
 import { MarketTicker, OHLCVPoint } from './types';
+import { normalizeChartSymbol } from './market/chart-symbol';
+import { fetchCoinGeckoOhlc } from './market/coingecko-ohlc';
 
 // In-memory cache for live market data
 let cachedTickers: MarketTicker[] = [];
@@ -50,20 +52,6 @@ export const COIN_METADATA: Record<string, { name: string; rank: number }> = {
   BONK: { name: 'Bonk', rank: 41 },
   FLOKI: { name: 'Floki', rank: 42 },
 };
-
-function generateSparklineFrom24h(currentPrice: number, change24h: number, points = 24): number[] {
-  const result: number[] = [];
-  const startPrice = currentPrice / (1 + change24h / 100);
-  const step = (currentPrice - startPrice) / points;
-  let curr = startPrice;
-  for (let i = 0; i < points - 1; i++) {
-    const jitter = (Math.sin(i * 0.8) + (Math.random() - 0.5) * 0.3) * (currentPrice * 0.008);
-    curr = Math.max(currentPrice * 0.3, curr + step + jitter);
-    result.push(Number(curr.toFixed(curr < 1 ? 6 : 2)));
-  }
-  result.push(Number(currentPrice.toFixed(currentPrice < 1 ? 6 : 2)));
-  return result;
-}
 
 interface ExchangeProvider {
   name: string;
@@ -191,24 +179,19 @@ export async function getLiveTickers(): Promise<MarketTicker[]> {
       const volumeUsd = parseFloat(item.quoteVolume);
       const meta = COIN_METADATA[baseSymbol];
 
-      // Approximate market cap if not strictly provided
-      const estimatedCap = meta?.rank
-        ? volumeUsd * Math.max(1.5, 45 - meta.rank * 0.8)
-        : volumeUsd * 3.5;
-
       tickers.push({
         id: baseSymbol.toLowerCase(),
         symbol: baseSymbol,
         name: meta?.name || `${baseSymbol} Token`,
         rank: meta?.rank || 999,
         priceUsd: price,
-        priceChange1h: Number(((Math.random() - 0.48) * 0.4).toFixed(2)),
+        priceChange1h: null,
         priceChange24h: Number(change24h.toFixed(2)),
-        priceChange7d: Number((change24h * 1.6 + (Math.random() - 0.5) * 4).toFixed(2)),
-        marketCapUsd: Math.round(estimatedCap),
+        priceChange7d: null,
+        marketCapUsd: null,
         volume24hUsd: Math.round(volumeUsd),
-        circulatingSupply: Math.round(estimatedCap / price),
-        sparkline7d: generateSparklineFrom24h(price, change24h),
+        circulatingSupply: null,
+        sparkline7d: [],
         high24h: parseFloat(item.highPrice) || price * 1.03,
         low24h: parseFloat(item.lowPrice) || price * 0.97,
       });
@@ -331,11 +314,13 @@ export async function getLivePriceForSymbol(symbol: string): Promise<{
 /**
  * Fetches real live OHLCV candlestick data directly from Exchange Klines API (Binance, MEXC, OKX)
  */
-export async function getLiveCandlesticks(
+export type LiveCandlestickResult = { data: OHLCVPoint[]; source: string | null };
+
+export async function getLiveCandlesticksWithSource(
   symbol: string,
   timeframe: string
-): Promise<OHLCVPoint[]> {
-  const cleanSymbol = symbol.trim().toUpperCase();
+): Promise<LiveCandlestickResult> {
+  const cleanSymbol = normalizeChartSymbol(symbol);
   const pair = `${cleanSymbol}USDT`;
 
   let interval = '15m';
@@ -397,7 +382,7 @@ export async function getLiveCandlesticks(
           lastTime = timeSec;
         }
       }
-      if (points.length >= 10) return points;
+      if (points.length >= 10) return { data: points, source: 'Exchange OHLCV' };
     }
   } catch (e) {
     console.warn(`Primary exchange Klines failed for ${pair}:`, e);
@@ -430,12 +415,21 @@ export async function getLiveCandlesticks(
             lastTime = timeSec;
           }
         }
-        if (points.length >= 10) return points;
+        if (points.length >= 10) return { data: points, source: 'Exchange OHLCV' };
       }
     }
   } catch (e) {
     console.warn(`OKX fallback failed for ${cleanSymbol}:`, e);
   }
 
-  return [];
+  const coinGeckoResult = await fetchCoinGeckoOhlc(cleanSymbol, timeframe);
+  if (coinGeckoResult) return coinGeckoResult;
+  return { data: [], source: null };
+}
+
+export async function getLiveCandlesticks(
+  symbol: string,
+  timeframe: string,
+): Promise<OHLCVPoint[]> {
+  return (await getLiveCandlesticksWithSource(symbol, timeframe)).data;
 }

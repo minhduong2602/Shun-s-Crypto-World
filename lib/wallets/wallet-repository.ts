@@ -9,7 +9,7 @@ function asNumber(value: unknown) {
 
 export function normalizeWalletAddress(chain: ChainType, address: string) {
   const trimmed = address.trim();
-  return ['ETH', 'BSC', 'POLYGON', 'ARBITRUM', 'BTC'].includes(chain) ? trimmed.toLowerCase() : trimmed;
+  return ['ETH', 'BSC', 'POLYGON', 'ARBITRUM', 'BASE', 'BTC'].includes(chain) ? trimmed.toLowerCase() : trimmed;
 }
 
 function mapAsset(row: AssetRow): WalletToken {
@@ -21,6 +21,7 @@ function mapAsset(row: AssetRow): WalletToken {
     balance: asNumber(row.balance),
     balanceUsd: asNumber(row.balance_usd),
     priceUsd: asNumber(row.price_usd),
+    priceAvailable: row.price_usd !== null && row.price_usd !== undefined,
     change24h: row.price_change_24h === null ? undefined : asNumber(row.price_change_24h),
     contractAddress: row.is_native ? undefined : String(row.asset_address),
     isNative: Boolean(row.is_native),
@@ -46,6 +47,7 @@ export function mapWalletRow(row: WalletRow): Wallet {
     nativeBalance: asNumber(row.native_balance),
     nativeSymbol: String(row.native_symbol),
     tokensCount: asNumber(row.asset_count),
+    unpricedAssetsCount: tokens.filter((token) => !token.priceAvailable).length,
     tokens: tokens.map((token) => ({
       ...token,
       allocationPercentage: total > 0 ? Number(((token.balanceUsd / total) * 100).toFixed(1)) : 0,

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
 import { getServerSupabase } from '@/lib/supabase/server';
 import { ChainType } from '@/lib/types';
-import { validateAddress } from '@/lib/onchain-wallet-service';
+import { validateAddress } from '@/lib/wallets/validate-address';
 import { PublicWalletIndexer } from '@/lib/providers/public-wallet-indexer';
 import { mapWalletRow, normalizeWalletAddress } from '@/lib/wallets/wallet-repository';
 import { syncWalletAssets, type WalletDatabaseClient } from '@/lib/wallets/wallet-sync-service';
@@ -74,12 +74,20 @@ export async function POST(req: NextRequest) {
       .single();
     if (createError || !created) throw createError ?? new Error('Không thể tạo ví theo dõi');
 
-    const summary = await syncWalletAssets({
-      client: supabase as unknown as WalletDatabaseClient,
-      indexer: new PublicWalletIndexer(),
-      ownerId: user.id,
-      wallet: { id: String((created as { id: string }).id), chain: selectedChain, address: trimmed },
-    });
+    let scanWarning: string | undefined;
+    let summary: Awaited<ReturnType<typeof syncWalletAssets>> | undefined;
+    try {
+      summary = await syncWalletAssets({
+        client: supabase as unknown as WalletDatabaseClient,
+        indexer: new PublicWalletIndexer(),
+        ownerId: user.id,
+        wallet: { id: String((created as { id: string }).id), chain: selectedChain, address: trimmed },
+      });
+    } catch (error) {
+      // Keep the explicitly requested watch-only wallet, but report that its initial scan failed.
+      // The sync run stores the provider error so the user can retry after fixing configuration.
+      scanWarning = error instanceof Error ? error.message : String(error);
+    }
     const { data: hydrated, error: hydrateError } = await supabase
       .from('wallets')
       .select('*, wallet_assets(*)')
@@ -91,7 +99,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       wallet,
-      message: `Đã kết nối ví chỉ xem! Quét được ${summary.tokensCount} token. Tổng giá trị: $${summary.balanceUsd.toLocaleString()}`,
+      message: scanWarning
+        ? `Đã lưu ví theo dõi, nhưng lần quét đầu chưa thành công: ${scanWarning}. Hãy kiểm tra cấu hình nguồn dữ liệu rồi đồng bộ lại.`
+        : `Đã kết nối ví chỉ xem! Quét được ${summary!.tokensCount} token. Tổng giá trị đã định giá: $${summary!.balanceUsd.toLocaleString()}`,
+      scanWarning,
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để theo dõi ví' }, { status: 401 });

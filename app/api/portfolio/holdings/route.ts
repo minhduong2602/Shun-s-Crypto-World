@@ -1,57 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
+import { getServerSupabase } from '@/lib/supabase/server';
+import { getLiveHoldings } from '@/lib/portfolio/repository';
+
+function apiError(error: unknown) {
+  if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xem danh mục' }, { status: 401 });
+  console.error('Portfolio holdings API error:', error);
+  return NextResponse.json({ error: 'Không thể tải danh mục lúc này' }, { status: 500 });
+}
 
 export async function GET() {
   try {
-    const holdings = await db.getLiveHoldings();
-    return NextResponse.json({
-      holdings,
-      isLive: true,
-      lastUpdated: new Date().toISOString(),
-    });
+    const user = await requireUser();
+    const holdings = await getLiveHoldings(await getServerSupabase(), user.id);
+    return NextResponse.json({ holdings, isLive: true, lastUpdated: new Date().toISOString() });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi tải danh sách tài sản: ' + String(error) }, { status: 500 });
+    return apiError(error);
   }
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(request: NextRequest) {
   try {
-    const { coinId, symbol, notes } = await req.json();
-    const target = coinId || symbol;
-    if (!target) {
-      return NextResponse.json({ error: 'Thiếu mã coinId hoặc symbol' }, { status: 400 });
-    }
-
-    const updated = db.updateHoldingNotes(target, notes || '');
-    return NextResponse.json({
-      success: true,
-      updated,
-      message: 'Đã cập nhật ghi chú vị thế tài sản thành công!',
-    });
+    const user = await requireUser();
+    const body = await request.json();
+    const symbol = String(body.symbol ?? body.coinId ?? '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,20}$/.test(symbol)) return NextResponse.json({ error: 'Mã tài sản không hợp lệ' }, { status: 400 });
+    const supabase = await getServerSupabase();
+    const { data, error } = await supabase.from('portfolio_transactions')
+      .update({ notes: typeof body.notes === 'string' ? body.notes : null })
+      .eq('owner_id', user.id)
+      .eq('symbol', symbol)
+      .select('id');
+    if (error) throw error;
+    return NextResponse.json({ success: true, updated: (data ?? []).length > 0 });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi cập nhật ghi chú: ' + String(error) }, { status: 500 });
+    return apiError(error);
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const coinId = searchParams.get('coinId') || searchParams.get('symbol');
-
-    if (!coinId) {
-      return NextResponse.json({ error: 'Thiếu coinId hoặc symbol cần xóa' }, { status: 400 });
-    }
-
-    const removed = db.removeHolding(coinId);
-    if (!removed) {
-      return NextResponse.json({ error: 'Không tìm thấy tài sản để xóa' }, { status: 404 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: `Đã xóa toàn bộ vị thế ${coinId.toUpperCase()} và tính toán lại danh mục`,
-    });
+    const user = await requireUser();
+    const search = new URL(request.url).searchParams;
+    const symbol = String(search.get('symbol') ?? search.get('coinId') ?? '').trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,20}$/.test(symbol)) return NextResponse.json({ error: 'Mã tài sản không hợp lệ' }, { status: 400 });
+    const supabase = await getServerSupabase();
+    const { data, error } = await supabase.from('portfolio_transactions').delete().eq('owner_id', user.id).eq('symbol', symbol).select('id');
+    if (error) throw error;
+    if (!data?.length) return NextResponse.json({ error: 'Không tìm thấy vị thế' }, { status: 404 });
+    return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi xóa vị thế tài sản: ' + String(error) }, { status: 500 });
+    return apiError(error);
   }
 }

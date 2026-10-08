@@ -8,6 +8,8 @@ const publicEnvSchema = z.object({
 const serverEnvSchema = publicEnvSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   COINGECKO_DEMO_API_KEY: z.string().min(1).optional(),
+  COINGECKO_DEMO_API_KEY_2: z.string().min(1).optional(),
+  COINGECKO_DEMO_API_KEY_3: z.string().min(1).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   CRON_SHARED_SECRET: z.string().min(1).optional(),
 });

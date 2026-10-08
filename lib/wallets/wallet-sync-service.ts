@@ -4,8 +4,9 @@ import { mapIndexedAssetsToWalletTokens, totalWalletValue } from '@/lib/wallets/
 
 type QueryResult = { error: { message: string } | null };
 
-interface UpdateQuery {
-  eq(column: string, value: string): Promise<QueryResult>;
+interface UpdateQuery extends PromiseLike<QueryResult> {
+  eq(column: string, value: string): UpdateQuery;
+  not(column: string, operator: string, value: string): UpdateQuery;
 }
 
 interface WalletDatabaseClient {
@@ -26,6 +27,10 @@ function assertNoDatabaseError(result: QueryResult) {
   if (result.error) throw new Error(result.error.message);
 }
 
+function postgrestInFilter(values: string[]) {
+  return `(${values.map((value) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')})`;
+}
+
 export async function syncWalletAssets({
   client,
   indexer,
@@ -44,7 +49,7 @@ export async function syncWalletAssets({
     owner_id: ownerId,
     wallet_id: wallet.id,
     status: 'running',
-    provider: 'goldrush',
+    provider: 'public-indexers',
     started_at: startedAt,
   });
   assertNoDatabaseError(run);
@@ -57,7 +62,6 @@ export async function syncWalletAssets({
     const tokensById = new Map(tokens.map((token) => [token.id, token]));
     const timestamp = new Date().toISOString();
 
-    assertNoDatabaseError(await client.from('wallet_assets').update({ is_active: false }).eq('wallet_id', wallet.id));
     if (indexedAssets.length > 0) {
       const assets = indexedAssets.map((asset) => {
         const token = tokensById.get(`${asset.chain}:${asset.assetAddress}`);
@@ -66,7 +70,7 @@ export async function syncWalletAssets({
         wallet_id: wallet.id,
         chain: asset.chain,
         asset_address: asset.assetAddress,
-        asset_address_normalized: asset.assetAddress,
+        asset_address_normalized: asset.chain === 'SOL' ? asset.assetAddress : asset.assetAddress.toLowerCase(),
         is_native: asset.isNative,
         symbol: asset.symbol,
         name: asset.name,
@@ -83,6 +87,15 @@ export async function syncWalletAssets({
       });
       assertNoDatabaseError(await client.from('wallet_assets').upsert(assets, { onConflict: 'wallet_id,chain,asset_address_normalized' }));
     }
+    // Keep the last known-good snapshot active unless the replacement batch has been stored.
+    const scannedAddresses = [...new Set(indexedAssets.map((asset) =>
+      asset.chain === 'SOL' ? asset.assetAddress : asset.assetAddress.toLowerCase(),
+    ))];
+    let staleAssetsQuery = client.from('wallet_assets').update({ is_active: false }).eq('wallet_id', wallet.id);
+    if (scannedAddresses.length > 0) {
+      staleAssetsQuery = staleAssetsQuery.not('asset_address_normalized', 'in', postgrestInFilter(scannedAddresses));
+    }
+    assertNoDatabaseError(await staleAssetsQuery);
 
     assertNoDatabaseError(await client.from('wallets').update({
       native_balance: native?.balance ?? 0,

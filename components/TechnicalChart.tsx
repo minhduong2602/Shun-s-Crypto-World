@@ -33,12 +33,17 @@ import { OHLCVPoint } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { normalizeChartSymbol } from '@/lib/market/chart-symbol';
+import { formatPortfolioCurrency } from '@/lib/format-portfolio-currency';
+import { connectWithReconnect } from '@/lib/market/reconnecting-websocket';
 
 interface TechnicalChartProps {
   selectedCoinId: string;
   onSelectCoin: (coinId: string) => void;
   baseCurrency: string;
+  usdVndRate?: number | null;
 }
 
 const POPULAR_CHART_COINS = [
@@ -65,6 +70,7 @@ const TIMEFRAMES = [
   { id: '1D', label: '1D', tvInterval: 'D' },
   { id: '1W', label: '1W', tvInterval: 'W' },
 ];
+const EMPTY_CHART_DATA: OHLCVPoint[] = [];
 
 function calculateSMA(data: OHLCVPoint[], period: number) {
   const result: { time: UTCTimestamp; value: number }[] = [];
@@ -105,11 +111,15 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
   selectedCoinId,
   onSelectCoin,
   baseCurrency,
+  usdVndRate,
 }) => {
   const [timeframe, setTimeframe] = useState<string>('15m');
   const [chartData, setChartData] = useState<OHLCVPoint[]>([]);
+  const [chartDataKey, setChartDataKey] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [dataErrorKey, setDataErrorKey] = useState<string | null>(null);
+  const [liveQuoteKey, setLiveQuoteKey] = useState<string | null>(null);
   const [livePrice, setLivePrice] = useState<number>(0);
   const [priceChange24h, setPriceChange24h] = useState<number>(0);
   const [high24h, setHigh24h] = useState<number>(0);
@@ -139,26 +149,28 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
   const sma50SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const ema200SeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const prevPriceRef = useRef<number>(0);
+  const dailyReferencePriceRef = useRef<number>(0);
 
-  const activeSymbol = (selectedCoinId || 'BTC').toUpperCase();
+  const activeSymbol = normalizeChartSymbol(selectedCoinId || 'BTC');
+  const requestKey = `${activeSymbol}:${timeframe.toLowerCase()}`;
+  const hasCurrentQuote = liveQuoteKey === requestKey;
+  const visibleLivePrice = hasCurrentQuote ? livePrice : 0;
+  const visiblePriceChange24h = hasCurrentQuote ? priceChange24h : null;
+  const visibleHigh24h = hasCurrentQuote ? high24h : 0;
+  const visibleLow24h = hasCurrentQuote ? low24h : 0;
+  const visibleVolume24h = hasCurrentQuote ? volume24h : 0;
+  const visibleChartData = chartDataKey === requestKey ? chartData : EMPTY_CHART_DATA;
+  const visibleDataError = dataErrorKey === requestKey ? dataError : null;
 
   // Format currency
-  const formatCurrency = (val: number) => {
-    if (baseCurrency === 'VND') {
-      const vndVal = val * 25450;
-      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(vndVal);
-    }
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: val < 1 ? 4 : 2,
-      maximumFractionDigits: val < 1 ? 6 : 2,
-    }).format(val);
-  };
+  const formatCurrency = (val: number) => formatPortfolioCurrency(val, baseCurrency, usdVndRate);
 
   // 1. Fetch Historical Klines from API
   useEffect(() => {
     let isMounted = true;
+    prevPriceRef.current = 0;
+    dailyReferencePriceRef.current = 0;
+
     async function loadHistoricalData() {
       setLoading(true);
       try {
@@ -167,14 +179,31 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
         if (!res.ok || !json.isLive || !Array.isArray(json.data) || json.data.length === 0) {
           if (isMounted) {
             setChartData([]);
+            setChartDataKey(requestKey);
             setDataError(json.error || 'Nguồn giá trực tiếp hiện không phản hồi.');
-            setLivePrice(0);
+            setDataErrorKey(requestKey);
+            setDataSource(json.dataSource || 'Dữ liệu thị trường không khả dụng');
+            if (Number.isFinite(json.currentPrice) && json.currentPrice > 0) {
+              setLiveQuoteKey(requestKey);
+              setLivePrice(json.currentPrice);
+              prevPriceRef.current = json.currentPrice;
+              if (Number.isFinite(json.priceChange24h) && json.priceChange24h > -100) {
+                setPriceChange24h(json.priceChange24h);
+                dailyReferencePriceRef.current = json.currentPrice / (1 + json.priceChange24h / 100);
+              }
+              if (Number.isFinite(json.high24h)) setHigh24h(json.high24h);
+              if (Number.isFinite(json.low24h)) setLow24h(json.low24h);
+              if (Number.isFinite(json.volume24h)) setVolume24h(json.volume24h);
+            } else {
+              setLiveQuoteKey(null);
+            }
           }
           return;
         }
 
         if (isMounted) {
           setDataError(null);
+          setDataErrorKey(null);
           const rawData: OHLCVPoint[] = json.data;
           // Ensure strictly ascending timestamps
           const cleanData: OHLCVPoint[] = [];
@@ -187,31 +216,44 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
           }
 
           setChartData(cleanData);
+          setChartDataKey(requestKey);
           setDataSource(json.dataSource || 'Binance / MEXC Live');
 
-          const latestClose = json.currentPrice || cleanData[cleanData.length - 1].close;
+          const latestClose = Number.isFinite(json.currentPrice) && json.currentPrice > 0
+            ? json.currentPrice
+            : cleanData[cleanData.length - 1].close;
           if (prevPriceRef.current && prevPriceRef.current !== latestClose) {
             setPriceFlash(latestClose > prevPriceRef.current ? 'up' : 'down');
             setTimeout(() => setPriceFlash(null), 800);
           }
           prevPriceRef.current = latestClose;
+          setLiveQuoteKey(requestKey);
           setLivePrice(latestClose);
 
           // Calculate 24h stats
           const highs = cleanData.map((d) => d.high);
           const lows = cleanData.map((d) => d.low);
           const vols = cleanData.map((d) => d.volume);
-          setHigh24h(Math.max(...highs));
-          setLow24h(Math.min(...lows));
-          setVolume24h(vols.reduce((a, b) => a + b, 0));
+          setHigh24h(Number.isFinite(json.high24h) ? json.high24h : Math.max(...highs));
+          setLow24h(Number.isFinite(json.low24h) ? json.low24h : Math.min(...lows));
+          setVolume24h(Number.isFinite(json.volume24h) ? json.volume24h : vols.reduce((a, b) => a + b, 0));
 
           const firstOpen = cleanData[0].open;
-          if (firstOpen > 0) {
-            const chg = ((latestClose - firstOpen) / firstOpen) * 100;
-            setPriceChange24h(Number(chg.toFixed(2)));
-          }
+          const change24h = Number.isFinite(json.priceChange24h)
+            ? json.priceChange24h
+            : firstOpen > 0 ? Number((((latestClose - firstOpen) / firstOpen) * 100).toFixed(2)) : 0;
+          setPriceChange24h(change24h);
+          if (change24h > -100) dailyReferencePriceRef.current = latestClose / (1 + change24h / 100);
         }
       } catch (err) {
+        if (isMounted) {
+          setDataError('Không thể kết nối nguồn dữ liệu biểu đồ. Đang thử lại tự động.');
+          setDataErrorKey(requestKey);
+          setChartData([]);
+          setChartDataKey(requestKey);
+          setLiveQuoteKey(null);
+          setDataSource('Dữ liệu thị trường không khả dụng');
+        }
         console.error('Lỗi nạp dữ liệu nến:', err);
       } finally {
         if (isMounted) setLoading(false);
@@ -225,7 +267,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       isMounted = false;
       clearInterval(interval);
     };
-  }, [activeSymbol, timeframe]);
+  }, [activeSymbol, timeframe, requestKey]);
 
   // 2. Setup Lightweight Charts Canvas
   useEffect(() => {
@@ -364,9 +406,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
   // 3. Update Chart Series when Data or Indicators change
   useEffect(() => {
     if (!chartInstanceRef.current || !candleSeriesRef.current) return;
-    if (chartData.length === 0) return;
-
-    const candleFormatted = chartData.map((d) => ({
+    const candleFormatted = visibleChartData.map((d) => ({
       time: d.time as UTCTimestamp,
       open: d.open,
       high: d.high,
@@ -377,7 +417,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
 
     if (volumeSeriesRef.current) {
       if (showVolume) {
-        const volumeFormatted = chartData.map((d) => ({
+        const volumeFormatted = visibleChartData.map((d) => ({
           time: d.time as UTCTimestamp,
           value: d.volume,
           color: d.close >= d.open ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)',
@@ -389,17 +429,17 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
     }
 
     if (sma20SeriesRef.current) {
-      sma20SeriesRef.current.setData(showSMA20 ? calculateSMA(chartData, 20) : []);
+      sma20SeriesRef.current.setData(showSMA20 ? calculateSMA(visibleChartData, 20) : []);
     }
     if (sma50SeriesRef.current) {
-      sma50SeriesRef.current.setData(showSMA50 ? calculateSMA(chartData, 50) : []);
+      sma50SeriesRef.current.setData(showSMA50 ? calculateSMA(visibleChartData, 50) : []);
     }
     if (ema200SeriesRef.current) {
-      ema200SeriesRef.current.setData(showEMA200 ? calculateEMA(chartData, 200) : []);
+      ema200SeriesRef.current.setData(showEMA200 ? calculateEMA(visibleChartData, 200) : []);
     }
 
     chartInstanceRef.current.timeScale().fitContent();
-  }, [chartData, showSMA20, showSMA50, showEMA200, showVolume]);
+  }, [visibleChartData, chartData, chartDataKey, requestKey, showSMA20, showSMA50, showEMA200, showVolume]);
 
   // 4. Real-time Live Binance WebSocket Stream (Sub-second tick updates)
   useEffect(() => {
@@ -415,17 +455,11 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
     else if (tfLower === '1d') wsInterval = '1d';
     else if (tfLower === '1w') wsInterval = '1w';
 
-    let ws: WebSocket | null = null;
     let isMounted = true;
-
-    try {
-      ws = new WebSocket(`wss://stream.binance.com:9443/ws/${pair}@kline_${wsInterval}`);
-
-      ws.onopen = () => {
-        if (isMounted) setWsStatus('CONNECTED');
-      };
-
-      ws.onmessage = (event) => {
+    const connection = connectWithReconnect(`wss://stream.binance.com:9443/ws/${pair}@kline_${wsInterval}`, {
+      onStatus: (status) => { if (isMounted) setWsStatus(status); },
+      onMessage: (event) => {
+        if (!isMounted) return;
         try {
           const msg = JSON.parse(event.data);
           if (msg && msg.k) {
@@ -443,7 +477,13 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
               setTimeout(() => setPriceFlash(null), 500);
             }
             prevPriceRef.current = currentClose;
+            setLiveQuoteKey(requestKey);
             setLivePrice(currentClose);
+            if (dailyReferencePriceRef.current > 0) {
+              setPriceChange24h(Number((((currentClose - dailyReferencePriceRef.current) / dailyReferencePriceRef.current) * 100).toFixed(2)));
+            }
+            setHigh24h((current) => Math.max(current, currentHigh));
+            setLow24h((current) => current > 0 ? Math.min(current, currentLow) : currentLow);
 
             // Update Candlestick in lightweight-charts
             if (candleSeriesRef.current) {
@@ -468,28 +508,14 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
         } catch {
           // ignore parsing error
         }
-      };
-
-      ws.onerror = () => {
-        if (isMounted) setWsStatus('FALLBACK_REST');
-      };
-
-      ws.onclose = () => {
-        if (isMounted) setWsStatus('DISCONNECTED');
-      };
-    } catch {
-      setTimeout(() => {
-        if (isMounted) setWsStatus('FALLBACK_REST');
-      }, 0);
-    }
+      },
+    });
 
     return () => {
       isMounted = false;
-      if (ws) {
-        ws.close();
-      }
+      connection.close();
     };
-  }, [activeSymbol, timeframe, showVolume]);
+  }, [activeSymbol, timeframe, requestKey, showVolume]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -505,7 +531,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
     }
   };
 
-  const currentDisplayPoint = crosshairPoint || (chartData.length > 0 ? chartData[chartData.length - 1] : null);
+  const currentDisplayPoint = crosshairPoint || (visibleChartData.length > 0 ? visibleChartData[visibleChartData.length - 1] : null);
 
   return (
     <Card
@@ -594,40 +620,48 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
                   : 'bg-muted text-foreground'
               }`}
             >
-              {formatCurrency(livePrice)}
+              {visibleLivePrice > 0 ? formatCurrency(visibleLivePrice) : '—'}
             </div>
           </div>
 
           {/* 24h Change */}
-          <div className="flex items-center space-x-1.5">
+          <div className="flex items-center space-x-1.5" aria-label="Biến động 24h">
             <span className="text-slate-400 text-[11px]">Biến động:</span>
             <span
               className={`font-mono font-bold flex items-center space-x-0.5 px-2 py-0.5 rounded ${
-                priceChange24h >= 0
+                visiblePriceChange24h === null
+                  ? 'bg-muted text-muted-foreground border border-border'
+                  : visiblePriceChange24h >= 0
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                   : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
               }`}
             >
-              {priceChange24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              <span>{priceChange24h >= 0 ? `+${priceChange24h}%` : `${priceChange24h}%`}</span>
+              {visiblePriceChange24h === null ? (
+                <span>—</span>
+              ) : (
+                <>
+                  {visiblePriceChange24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                  <span>{visiblePriceChange24h >= 0 ? `+${visiblePriceChange24h}%` : `${visiblePriceChange24h}%`}</span>
+                </>
+              )}
             </span>
           </div>
 
           {/* 24h High & Low */}
-          {high24h > 0 && (
+          {visibleHigh24h > 0 && (
             <div className="hidden md:flex items-center space-x-3 text-slate-400 font-mono text-[11px]">
               <div>
                 <span>24h Cao: </span>
-                <span className="text-slate-200 font-semibold">{formatCurrency(high24h)}</span>
+                <span className="text-slate-200 font-semibold">{formatCurrency(visibleHigh24h)}</span>
               </div>
               <div>
                 <span>24h Thấp: </span>
-                <span className="text-slate-200 font-semibold">{formatCurrency(low24h)}</span>
+                <span className="text-slate-200 font-semibold">{formatCurrency(visibleLow24h)}</span>
               </div>
-              {volume24h > 0 && (
+              {visibleVolume24h > 0 && (
                 <div>
                   <span>24h Vol: </span>
-                  <span className="text-slate-200 font-semibold">{volume24h.toLocaleString(undefined, { maximumFractionDigits: 0 })} {activeSymbol}</span>
+                  <span className="text-slate-200 font-semibold">{visibleVolume24h.toLocaleString(undefined, { maximumFractionDigits: 0 })} {activeSymbol}</span>
                 </div>
               )}
             </div>
@@ -643,7 +677,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
             ) : (
               <>
                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                <span className="text-amber-300 font-medium">{dataSource}</span>
+                <span className="text-amber-300 font-medium">{hasCurrentQuote ? dataSource : visibleDataError ? 'Dữ liệu thị trường không khả dụng' : 'Đang tải dữ liệu thị trường…'}</span>
               </>
             )}
           </div>
@@ -734,10 +768,10 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       <div className="relative min-h-[460px] flex-1 bg-background sm:min-h-[540px]">
         {/* HUD Toolbar (crosshair information) */}
         {currentDisplayPoint && (
-          <div className="absolute top-2 left-3 z-20 flex items-center space-x-3 text-[11px] font-mono bg-[#161b22]/90 backdrop-blur-md px-3 py-1 rounded-lg border border-[#30363d]/80 pointer-events-none text-slate-300 flex-wrap gap-y-1">
-            <span className="text-white font-bold">{activeSymbol}/USDT</span>
+          <div className="absolute top-2 left-3 z-20 flex items-center space-x-3 text-[11px] font-mono bg-card/90 backdrop-blur-md px-3 py-1 rounded-lg border pointer-events-none text-muted-foreground flex-wrap gap-y-1">
+            <span className="text-foreground font-bold">{activeSymbol}/USDT</span>
             <span>
-              O: <strong className="text-white">{currentDisplayPoint.open}</strong>
+              O: <strong className="text-foreground">{currentDisplayPoint.open}</strong>
             </span>
             <span>
               H: <strong className="text-emerald-400">{currentDisplayPoint.high}</strong>
@@ -776,12 +810,12 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
           </div>
         )}
 
-        {dataError && !loading && (
+        {visibleDataError && !loading && (
           <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/85 px-6 text-center">
-            <div className="max-w-md rounded-lg border border-amber-500/30 bg-card p-5 text-sm text-amber-200 shadow-sm">
-              <p className="font-semibold">Không hiển thị dữ liệu mô phỏng</p>
-              <p className="mt-2 text-slate-300">{dataError}</p>
-            </div>
+            <Alert className="max-w-md bg-card text-left shadow-sm">
+              <AlertTitle>Dữ liệu biểu đồ tạm thời không khả dụng</AlertTitle>
+              <AlertDescription className="mt-2 break-words">{visibleDataError}</AlertDescription>
+            </Alert>
           </div>
         )}
 

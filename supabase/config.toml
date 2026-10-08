@@ -1,0 +1,4 @@
+[functions.check-price-alerts]
+# The function validates CRON_SHARED_SECRET itself; Supabase's JWT gateway
+# would otherwise reject the dedicated bearer token before it reaches the handler.
+verify_jwt = false

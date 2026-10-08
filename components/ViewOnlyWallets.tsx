@@ -23,10 +23,22 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Wallet, ChainType, WalletToken } from '@/lib/types';
+import { formatPortfolioCurrency } from '@/lib/format-portfolio-currency';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ViewOnlyWalletsProps {
   wallets: Wallet[];
   baseCurrency: string;
+  usdVndRate?: number | null;
   onRefresh: () => void;
 }
 
@@ -55,6 +67,10 @@ const SAMPLE_ADDRESSES: Record<ChainType, { address: string; label: string }> = 
     address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
     label: 'Arbitrum One Holding',
   },
+  BASE: {
+    address: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+    label: 'Base Network Holding',
+  },
 };
 
 const EXPLORER_URLS: Record<ChainType, (addr: string) => string> = {
@@ -64,6 +80,7 @@ const EXPLORER_URLS: Record<ChainType, (addr: string) => string> = {
   BSC: (addr) => `https://bscscan.com/address/${addr}`,
   POLYGON: (addr) => `https://polygonscan.com/address/${addr}`,
   ARBITRUM: (addr) => `https://arbiscan.io/address/${addr}`,
+  BASE: (addr) => `https://basescan.org/address/${addr}`,
 };
 
 const TOKEN_EXPLORER_URLS: Record<ChainType, (contract: string) => string> = {
@@ -73,6 +90,7 @@ const TOKEN_EXPLORER_URLS: Record<ChainType, (contract: string) => string> = {
   BSC: (contract) => `https://bscscan.com/token/${contract}`,
   POLYGON: (contract) => `https://polygonscan.com/token/${contract}`,
   ARBITRUM: (contract) => `https://arbiscan.io/token/${contract}`,
+  BASE: (contract) => `https://basescan.org/token/${contract}`,
 };
 
 const ALLOCATION_COLORS = [
@@ -88,6 +106,7 @@ const ALLOCATION_COLORS = [
 export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
   wallets,
   baseCurrency,
+  usdVndRate,
   onRefresh,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
@@ -98,7 +117,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'warning' | 'error'; text: string } | null>(null);
 
   // Detail Modal for viewing all coins in wallet
   const [selectedWallet, setSelectedWallet] = useState<Wallet | null>(null);
@@ -155,36 +174,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
     }
   };
 
-  const handleDeleteToken = async (tokenId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (!selectedWallet) return;
-    try {
-      const res = await fetch(`/api/wallets/${encodeURIComponent(selectedWallet.id)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'remove_token', tokenId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success && data.wallet) {
-        setSelectedWallet(data.wallet);
-        setNotification({
-          type: 'success',
-          text: 'Đã xóa token khỏi danh sách theo dõi của ví',
-        });
-        onRefresh();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const formatCurrency = (val: number) => {
-    if (baseCurrency === 'VND') {
-      const vndVal = val * 25450;
-      return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(vndVal);
-    }
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
-  };
+  const formatCurrency = (val: number) => formatPortfolioCurrency(val, baseCurrency, usdVndRate);
 
   const handleCopy = (text: string, id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -325,7 +315,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
         setAddress('');
         setLabel('');
         setNotification({
-          type: 'success',
+          type: data.scanWarning ? 'warning' : 'success',
           text: data.message || 'Đã thêm ví và quét số dư on-chain thành công!',
         });
         onRefresh();
@@ -397,55 +387,48 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
     <div className="space-y-6">
       {/* Toast Notification */}
       {notification && (
-        <div
-          className={`p-3.5 rounded-xl text-xs flex items-center space-x-2 border shadow-lg ${
-            notification.type === 'success'
-              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-              : 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-          }`}
+        <Alert
+          variant={notification.type === 'error' ? 'destructive' : 'default'}
+          className={notification.type === 'warning' ? 'border-amber-500/40 text-amber-500' : ''}
         >
-          {notification.type === 'success' ? (
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0 text-emerald-400" />
-          ) : (
-            <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
-          )}
-          <span>{notification.text}</span>
-        </div>
+          {notification.type === 'success' ? <CheckCircle2 /> : <AlertCircle />}
+          <AlertDescription>{notification.text}</AlertDescription>
+        </Alert>
       )}
 
       {/* Header controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center space-x-2">
+          <h2 className="text-xl font-bold text-foreground flex items-center space-x-2">
             <span>Danh sách Ví đang theo dõi (Watch-Only)</span>
-            <span className="text-xs text-slate-400 font-normal">({wallets.length} ví)</span>
+            <span className="text-xs text-muted-foreground font-normal">({wallets.length} ví)</span>
           </h2>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             Tổng tài sản trong các ví công khai: <span className="font-mono font-bold text-emerald-400">{formatCurrency(totalBalance)}</span>
-            <span className="text-slate-500 ml-2">• Bấm vào ví để xem danh sách toàn bộ các coin/token</span>
+            <span className="text-muted-foreground ml-2">• Bấm vào ví để xem danh sách toàn bộ các coin/token</span>
           </p>
         </div>
 
-        <button
+        <Button
           onClick={() => {
             setErrorMsg('');
             setShowAddModal(true);
           }}
-          className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors shadow-md"
+          className="h-9 rounded-md bg-primary px-4 text-primary-foreground shadow-sm"
         >
           <Plus className="w-4 h-4" />
           <span>Theo dõi địa chỉ mới</span>
-        </button>
+        </Button>
       </div>
 
       {/* Wallets Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {wallets.length === 0 ? (
-          <div className="col-span-full bg-[#161b22] border border-[#30363d] rounded-2xl p-12 text-center text-slate-400">
-            <WalletIcon className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-            <p className="font-semibold text-white">Chưa có ví nào trong danh sách theo dõi</p>
-            <p className="text-xs text-slate-500 mt-1">Bấm nút &ldquo;Theo dõi địa chỉ mới&rdquo; ở trên để thêm địa chỉ ví công khai đầu tiên.</p>
-          </div>
+          <Card className="col-span-full border-dashed p-12 text-center text-muted-foreground">
+            <WalletIcon className="mx-auto mb-3 size-10 text-muted-foreground" />
+            <p className="font-semibold text-foreground">Chưa có ví nào trong danh sách theo dõi</p>
+            <p className="mt-1 text-xs text-muted-foreground">Bấm nút &ldquo;Theo dõi địa chỉ mới&rdquo; ở trên để thêm địa chỉ ví công khai đầu tiên.</p>
+          </Card>
         ) : (
           wallets.map((wallet) => {
             const explorerLink = EXPLORER_URLS[wallet.chain]?.(wallet.address) || '#';
@@ -453,87 +436,102 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
             const topTokens = (wallet.tokens || []).slice(0, 3);
 
             return (
-              <div
+              <Card
                 key={wallet.id}
-                onClick={() => handleSelectWallet(wallet)}
-                className="bg-[#161b22] border border-[#30363d] hover:border-emerald-500/50 hover:shadow-emerald-500/5 rounded-2xl p-5 shadow-lg flex flex-col justify-between transition-all cursor-pointer group"
+                className="group flex flex-col justify-between p-5 transition-colors hover:border-primary/50"
               >
                 <div>
                   {/* Card top */}
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-2">
-                      <span className="px-2 py-0.5 text-[11px] font-bold rounded-md bg-[#21262d] text-cyan-400 font-mono border border-slate-700">
-                        {wallet.chain}
-                      </span>
-                      <span className="font-bold text-white text-sm group-hover:text-emerald-400 transition-colors">
+                      <Badge variant="outline" className="font-mono text-[11px]">{wallet.chain}</Badge>
+                      <span className="text-sm font-bold text-foreground transition-colors group-hover:text-primary">
                         {wallet.label}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
-                      <button
+                    <div className="flex items-center space-x-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => handleSync(wallet.id, e)}
                         disabled={syncingId === wallet.id}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-[#21262d] transition-colors"
+                        className="size-8 rounded-lg"
+                        aria-label="Đồng bộ lại số dư on-chain"
                         title="Đồng bộ lại số dư on-chain"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${syncingId === wallet.id ? 'animate-spin text-emerald-400' : ''}`} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => handleOpenEditWallet(wallet, e)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-[#21262d] transition-colors"
+                        className="size-8 rounded-lg"
+                        aria-label="Đổi tên nhãn ví"
                         title="Đổi tên nhãn ví"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                       <a
                         href={explorerLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-[#21262d] transition-colors"
+                        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                        aria-label={`Mở Explorer cho ví ${wallet.label}`}
                         title="Kiểm tra trực tiếp trên Blockchain Explorer"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                       </a>
-                      <button
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         onClick={(e) => handleOpenDelete(wallet, e)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-[#21262d] transition-colors"
+                        className="size-8 rounded-lg text-destructive"
+                        aria-label="Xóa ví khỏi danh sách theo dõi"
                         title="Xóa ví khỏi danh sách theo dõi"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
 
                   {/* Address truncated */}
-                  <div className="mt-3 flex items-center justify-between bg-[#0d1117] px-3 py-1.5 rounded-lg border border-[#21262d]">
-                    <span className="font-mono text-xs text-slate-400 truncate max-w-[200px]" title={wallet.address}>
+                  <div className="mt-3 flex items-center justify-between rounded-md border bg-muted/50 px-3 py-1.5">
+                    <span className="max-w-[200px] truncate font-mono text-xs text-muted-foreground" title={wallet.address}>
                       {wallet.address}
                     </span>
-                    <button
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
                       onClick={(e) => handleCopy(wallet.address, wallet.id, e)}
-                      className="text-slate-400 hover:text-white ml-2"
+                      className="ml-2 size-7"
+                      aria-label="Sao chép địa chỉ ví"
                       title="Sao chép địa chỉ"
                     >
                       {copiedId === wallet.id ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <Check className="size-3.5 text-primary" />
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
-                    </button>
+                    </Button>
                   </div>
 
                   {/* Balances */}
-                  <div className="mt-4 pt-3 border-t border-[#21262d]">
+                  <div className="mt-4 border-t pt-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400 text-[11px]">Tổng giá trị on-chain:</span>
-                      <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      <span className="text-[11px] text-muted-foreground">Giá trị đã định giá:</span>
+                      <Badge variant="secondary" className="rounded-full text-[11px]">
                         {coinsCount} {coinsCount === 1 ? 'Coin' : 'Coins'}
-                      </span>
+                      </Badge>
                     </div>
-                    <div className="text-xl font-bold font-mono text-white mt-0.5">
+                    <div className="mt-0.5 font-mono text-xl font-bold text-foreground">
                       {formatCurrency(wallet.balanceUsd)}
                     </div>
-                    <div className="text-xs text-emerald-400 font-mono mt-0.5 font-semibold">
+                    {!!wallet.unpricedAssetsCount && <div className="mt-1 text-[11px] text-amber-500">{wallet.unpricedAssetsCount} token chưa có giá</div>}
+                    <div className="mt-0.5 font-mono text-xs font-semibold text-primary">
                       {wallet.nativeBalance} {wallet.nativeSymbol}
                     </div>
 
@@ -541,12 +539,9 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                     {topTokens.length > 0 && (
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {topTokens.map((t) => (
-                          <span
-                            key={t.id}
-                            className="px-2 py-0.5 rounded bg-[#0d1117] text-[10px] text-slate-300 font-mono border border-slate-800"
-                          >
-                            <strong className="text-white">{t.symbol}:</strong> {t.balance.toLocaleString()}
-                          </span>
+                          <Badge key={t.id} variant="secondary" className="font-mono text-[10px]">
+                            <strong className="mr-1 text-foreground">{t.symbol}:</strong> {t.balance.toLocaleString()}
+                          </Badge>
                         ))}
                       </div>
                     )}
@@ -554,16 +549,22 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                 </div>
 
                 {/* Card footer with CTA */}
-                <div className="mt-4 pt-3 border-t border-[#21262d]/50">
-                  <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold group-hover:translate-x-0.5 transition-transform">
+                <div className="mt-4 border-t pt-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => handleSelectWallet(wallet)}
+                    className="h-auto w-full justify-between rounded-md px-2 py-2 text-xs font-semibold text-primary"
+                    aria-label={`Xem chi tiết ví ${wallet.label}`}
+                  >
                     <span className="flex items-center space-x-1.5">
                       <Coins className="w-3.5 h-3.5" />
                       <span>Xem tất cả {coinsCount} coins chi tiết</span>
                     </span>
                     <ArrowUpRight className="w-4 h-4" />
-                  </div>
+                  </Button>
                 </div>
-              </div>
+              </Card>
             );
           })
         )}
@@ -572,32 +573,39 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
       {/* ============================================================ */}
       {/* MODAL 1: VIEW ALL COINS IN ON-CHAIN WALLET DETAIL MODAL */}
       {/* ============================================================ */}
-      {selectedWallet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-[#161b22] border border-[#30363d] rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl relative overflow-hidden">
+      <Dialog open={Boolean(selectedWallet)} onOpenChange={(open) => { if (!open) setSelectedWallet(null); }}>
+        {selectedWallet && (
+          <DialogContent className="max-w-4xl overflow-hidden border-border bg-card p-0 text-card-foreground">
+            <DialogTitle className="sr-only">Ví {selectedWallet.label}</DialogTitle>
+            <DialogDescription className="sr-only">Chi tiết số dư và token của ví {selectedWallet.label}.</DialogDescription>
+            <div className="flex max-h-[90vh] flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="p-5 sm:p-6 border-b border-[#21262d] flex items-start justify-between bg-[#0d1117]">
+            <div className="flex items-start justify-between border-b bg-muted/30 p-5 sm:p-6">
               <div>
                 <div className="flex items-center space-x-2.5">
-                  <span className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-500/20 text-emerald-400 font-mono border border-emerald-500/30">
+                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 font-mono text-emerald-400">
                     {selectedWallet.chain}
-                  </span>
-                  <h3 className="text-lg sm:text-xl font-bold text-white flex items-center space-x-2">
+                  </Badge>
+                  <h3 className="text-lg sm:text-xl font-bold text-foreground flex items-center space-x-2">
                     <span>{selectedWallet.label}</span>
                   </h3>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-mono border border-cyan-500/20">
+                  <Badge variant="secondary" className="font-mono">
                     {walletTokens.length} coins on-chain
-                  </span>
+                  </Badge>
                 </div>
 
                 {/* Address bar with copy & explorer link */}
                 <div className="mt-2.5 flex items-center space-x-2 text-xs">
-                  <span className="font-mono text-slate-300 bg-[#161b22] px-2.5 py-1 rounded-md border border-[#30363d]">
+                  <span className="rounded-md border bg-background px-2.5 py-1 font-mono text-xs text-muted-foreground">
                     {selectedWallet.address}
                   </span>
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={(e) => handleCopy(selectedWallet.address, 'modal-addr', e)}
-                    className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#21262d] transition-colors"
+                    className="size-7"
+                    aria-label="Sao chép địa chỉ ví"
                     title="Sao chép địa chỉ"
                   >
                     {copiedId === 'modal-addr' ? (
@@ -605,12 +613,12 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                     ) : (
                       <Copy className="w-3.5 h-3.5" />
                     )}
-                  </button>
+                  </Button>
                   <a
                     href={EXPLORER_URLS[selectedWallet.chain]?.(selectedWallet.address) || '#'}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center space-x-1 text-cyan-400 hover:text-cyan-300 hover:underline px-2 py-1 rounded bg-[#161b22] border border-[#30363d]"
+                    className="flex items-center space-x-1 text-primary hover:underline px-2 py-1 rounded-md bg-muted border"
                   >
                     <span>Explorer</span>
                     <ExternalLink className="w-3 h-3" />
@@ -619,40 +627,31 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
               </div>
 
               <div className="flex items-center space-x-2">
-                <button
+                <Button variant="outline" size="sm"
                   onClick={(e) => handleSync(selectedWallet.id, e)}
                   disabled={syncingId === selectedWallet.id}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-slate-200 text-xs font-semibold transition-colors"
                   title="Quét lại số dư on-chain"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${syncingId === selectedWallet.id ? 'animate-spin text-emerald-400' : ''}`} />
                   <span className="hidden sm:inline">Quét lại</span>
-                </button>
-                <button
+                </Button>
+                <Button variant="outline" size="sm"
                   onClick={(e) => handleOpenEditWallet(selectedWallet, e)}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-slate-200 text-xs font-semibold transition-colors"
                   title="Đổi tên nhãn ví"
                 >
                   <Edit2 className="w-3.5 h-3.5 text-cyan-400" />
                   <span className="hidden sm:inline">Đổi tên</span>
-                </button>
-                <button
+                </Button>
+                <Button variant="destructive" size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
                     setWalletToDelete(selectedWallet);
                   }}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs font-semibold transition-colors"
                   title="Xóa ví khỏi danh sách theo dõi"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Xóa ví</span>
-                </button>
-                <button
-                  onClick={() => setSelectedWallet(null)}
-                  className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-[#21262d] transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                </Button>
               </div>
             </div>
 
@@ -660,40 +659,41 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
             <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
               {/* Wallet Summary Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-3.5 bg-[#0d1117] rounded-xl border border-[#21262d]">
-                  <div className="text-[11px] text-slate-400">Tổng giá trị tài sản</div>
+                <Card className="p-3.5">
+                  <div className="text-[11px] text-muted-foreground">Giá trị đã định giá</div>
                   <div className="text-xl font-bold font-mono text-emerald-400 mt-0.5">
                     {formatCurrency(selectedWallet.balanceUsd)}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5 font-mono">
-                    ≈ {(selectedWallet.balanceUsd * 25450).toLocaleString('vi-VN')} VND
+                    <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                    ≈ {formatPortfolioCurrency(selectedWallet.balanceUsd, 'VND', usdVndRate)}
                   </div>
-                </div>
+                  {!!selectedWallet.unpricedAssetsCount && <div className="text-[11px] text-amber-400 mt-1">{selectedWallet.unpricedAssetsCount} token chưa có nguồn giá</div>}
+                </Card>
 
-                <div className="p-3.5 bg-[#0d1117] rounded-xl border border-[#21262d]">
-                  <div className="text-[11px] text-slate-400">Coin gốc (Native Coin)</div>
-                  <div className="text-xl font-bold font-mono text-white mt-0.5">
+                <Card className="p-3.5">
+                  <div className="text-[11px] text-muted-foreground">Coin gốc (Native Coin)</div>
+                  <div className="text-xl font-bold font-mono text-foreground mt-0.5">
                     {selectedWallet.nativeBalance.toLocaleString()} {selectedWallet.nativeSymbol}
                   </div>
                   <div className="text-[11px] text-emerald-400 mt-0.5 font-semibold">
                     Đã xác thực on-chain
                   </div>
-                </div>
+                </Card>
 
-                <div className="p-3.5 bg-[#0d1117] rounded-xl border border-[#21262d]">
-                  <div className="text-[11px] text-slate-400">Tổng loại coin/token</div>
+                <Card className="p-3.5">
+                  <div className="text-[11px] text-muted-foreground">Tổng loại coin/token</div>
                   <div className="text-xl font-bold font-mono text-cyan-400 mt-0.5">
                     {walletTokens.length} Tokens
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
                     Đồng bộ lần cuối: {new Date(selectedWallet.lastSyncedAt || selectedWallet.createdAt).toLocaleTimeString('vi-VN')}
                   </div>
-                </div>
+                </Card>
               </div>
 
               {/* Allocation Visual Bar */}
               {walletTokens.length > 0 && (
-                <div className="bg-[#0d1117] p-4 rounded-xl border border-[#21262d] space-y-2">
+                <Card className="space-y-2 p-4">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-slate-300 flex items-center space-x-1.5">
                       <Layers className="w-3.5 h-3.5 text-emerald-400" />
@@ -703,7 +703,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                   </div>
 
                   {/* Multi-color Progress Bar */}
-                  <div className="h-3 w-full bg-[#161b22] rounded-full overflow-hidden flex">
+                  <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted">
                     {walletTokens.map((t, idx) => {
                       const color = ALLOCATION_COLORS[idx % ALLOCATION_COLORS.length];
                       const pct = t.allocationPercentage || 0;
@@ -732,93 +732,68 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                       );
                     })}
                   </div>
-                </div>
+                </Card>
               )}
 
               {/* Search & Filter Controls */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2">
                 <div className="relative flex-1">
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
+                  <Input
+                    type="search"
+                    aria-label="Tìm token trong ví"
                     placeholder="Tìm coin theo tên, symbol hoặc hợp đồng..."
                     value={tokenSearch}
                     onChange={(e) => setTokenSearch(e.target.value)}
-                    className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    className="h-9 bg-background pl-9 pr-9 text-xs"
                   />
                   {tokenSearch && (
-                    <button
+                    <Button variant="ghost" size="icon"
                       onClick={() => setTokenSearch('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                      className="absolute right-1 top-1/2 size-7 -translate-y-1/2"
+                      aria-label="Xóa nội dung tìm token"
                     >
                       <X className="w-3.5 h-3.5" />
-                    </button>
+                    </Button>
                   )}
                 </div>
 
-                <div className="flex items-center space-x-1 bg-[#0d1117] p-1 rounded-xl border border-[#30363d] text-xs">
-                  <button
-                    onClick={() => setTokenFilter('ALL')}
-                    className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                      tokenFilter === 'ALL' ? 'bg-[#21262d] text-white shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Tất cả ({walletTokens.length})
-                  </button>
-                  <button
-                    onClick={() => setTokenFilter('NATIVE')}
-                    className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                      tokenFilter === 'NATIVE' ? 'bg-[#21262d] text-white shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Native
-                  </button>
-                  <button
-                    onClick={() => setTokenFilter('STABLE')}
-                    className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                      tokenFilter === 'STABLE' ? 'bg-[#21262d] text-white shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Stablecoins
-                  </button>
-                  <button
-                    onClick={() => setTokenFilter('OTHER')}
-                    className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                      tokenFilter === 'OTHER' ? 'bg-[#21262d] text-white shadow' : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Tokens
-                  </button>
-                </div>
+                <Tabs value={tokenFilter} onValueChange={(value) => setTokenFilter(value as typeof tokenFilter)}>
+                  <TabsList aria-label="Lọc token" className="h-9 w-full justify-start overflow-x-auto sm:w-auto">
+                    <TabsTrigger value="ALL" className="text-xs">Tất cả ({walletTokens.length})</TabsTrigger>
+                    <TabsTrigger value="NATIVE" className="text-xs">Native</TabsTrigger>
+                    <TabsTrigger value="STABLE" className="text-xs">Stablecoins</TabsTrigger>
+                    <TabsTrigger value="OTHER" className="text-xs">Tokens</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </div>
 
               {/* COIN LIST TABLE */}
-              <div className="bg-[#0d1117] rounded-xl border border-[#21262d] overflow-hidden shadow">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#161b22] text-slate-400 font-semibold border-b border-[#21262d] uppercase text-[10px] tracking-wider">
-                      <tr>
-                        <th className="py-3 px-4">Tài sản (Coin/Token)</th>
-                        <th className="py-3 px-4">Loại</th>
-                        <th className="py-3 px-4 text-right">Số lượng on-chain</th>
-                        <th className="py-3 px-4 text-right">Giá Live (USD)</th>
-                        <th className="py-3 px-4 text-right">24h</th>
-                        <th className="py-3 px-4 text-right">Tổng giá trị</th>
-                        <th className="py-3 px-4 text-right">Tỷ trọng</th>
-                        <th className="py-3 px-4 text-center">Hợp đồng</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#21262d]">
+              <div className="overflow-hidden rounded-lg border border-border bg-card">
+                  <Table className="text-left text-xs" aria-label={`Danh sách token của ví ${selectedWallet.label}`}>
+                    <TableHeader className="bg-muted/60 uppercase text-[10px] tracking-wider">
+                      <TableRow>
+                        <TableHead className="px-4">Tài sản (Coin/Token)</TableHead>
+                        <TableHead className="px-4">Loại</TableHead>
+                        <TableHead className="px-4 text-right">Số lượng on-chain</TableHead>
+                        <TableHead className="px-4 text-right">Giá Live (USD)</TableHead>
+                        <TableHead className="px-4 text-right">24h</TableHead>
+                        <TableHead className="px-4 text-right">Tổng giá trị</TableHead>
+                        <TableHead className="px-4 text-right">Tỷ trọng</TableHead>
+                        <TableHead className="px-4 text-center">Hợp đồng</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {filteredTokens.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                        <TableRow>
+                          <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                             <Coins className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                            <p className="font-semibold text-white">Không tìm thấy coin nào phù hợp</p>
-                            <p className="text-[11px] text-slate-500 mt-1">
+                            <p className="font-semibold text-foreground">Không tìm thấy coin nào phù hợp</p>
+                            <p className="text-[11px] text-muted-foreground mt-1">
                               Thử tìm kiếm với từ khóa khác hoặc bấm nút Quét Lại ở trên.
                             </p>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ) : (
                         filteredTokens.map((token, idx) => {
                           const isPositive = (token.change24h || 0) >= 0;
@@ -827,32 +802,37 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                             : EXPLORER_URLS[token.chain]?.(selectedWallet.address);
 
                           return (
-                            <tr key={token.id || idx} className="hover:bg-[#161b22]/70 transition-colors">
+                            <TableRow key={token.id || idx}>
                               {/* Asset name & symbol */}
-                              <td className="py-3.5 px-4">
+                              <TableCell className="px-4">
                                 <div className="flex items-center space-x-2.5">
-                                  <div className="w-7 h-7 rounded-full bg-[#21262d] border border-slate-700 flex items-center justify-center font-bold text-[11px] text-emerald-400 font-mono flex-shrink-0">
+                                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full border bg-muted font-mono text-[11px] font-bold text-primary">
                                     {token.symbol.slice(0, 3)}
                                   </div>
                                   <div>
-                                    <div className="font-bold text-white flex items-center space-x-1.5">
+                                    <div className="font-bold text-foreground flex items-center space-x-1.5">
                                       <span>{token.symbol}</span>
                                       {token.isNative && (
-                                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono">
+                                        <Badge variant="secondary" className="px-1.5 py-0 font-mono text-[9px]">
                                           NATIVE
-                                        </span>
+                                        </Badge>
                                       )}
                                     </div>
-                                    <div className="text-[11px] text-slate-400 truncate max-w-[120px]">
+                                    <div className="text-[11px] text-muted-foreground truncate max-w-[120px]">
                                       {token.name}
                                     </div>
+                                    {token.chain === 'SOL' && !token.isNative && token.symbol !== 'SPL' && (
+                                      <Badge variant="outline" className="mt-1 h-auto border-amber-500/30 px-1 py-0 text-[9px] font-normal text-amber-500">
+                                        Metadata on-chain · chưa xác minh
+                                      </Badge>
+                                    )}
                                   </div>
                                 </div>
-                              </td>
+                              </TableCell>
 
                               {/* Type */}
-                              <td className="py-3.5 px-4 font-mono text-[11px]">
-                                <span className="px-2 py-0.5 rounded bg-[#161b22] text-slate-300 border border-[#30363d]">
+                              <TableCell className="px-4 font-mono text-[11px]">
+                                <Badge variant="outline" className="font-normal">
                                   {token.isNative
                                     ? `${token.chain} Native`
                                     : token.chain === 'SOL'
@@ -860,21 +840,21 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                                     : token.chain === 'BSC'
                                     ? 'BEP-20'
                                     : 'ERC-20'}
-                                </span>
-                              </td>
+                                </Badge>
+                              </TableCell>
 
                               {/* Balance */}
-                              <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
+                              <TableCell className="px-4 text-right font-mono font-bold text-foreground">
                                 {token.balance.toLocaleString(undefined, { maximumFractionDigits: 6 })}
-                              </td>
+                              </TableCell>
 
                               {/* Live Price */}
-                              <td className="py-3.5 px-4 text-right font-mono text-slate-300">
-                                ${token.priceUsd < 0.01 ? token.priceUsd.toFixed(8) : token.priceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
-                              </td>
+                              <TableCell className="px-4 text-right font-mono text-muted-foreground">
+                                {token.priceAvailable === false ? '—' : `$${token.priceUsd < 0.01 ? token.priceUsd.toFixed(8) : token.priceUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
+                              </TableCell>
 
                               {/* 24h change */}
-                              <td className="py-3.5 px-4 text-right font-mono font-semibold">
+                              <TableCell className="px-4 text-right font-mono font-semibold">
                                 <span
                                   className={`inline-flex items-center space-x-0.5 ${
                                     isPositive ? 'text-emerald-400' : 'text-rose-400'
@@ -885,29 +865,33 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                                   ) : (
                                     <ArrowDownRight className="w-3 h-3" />
                                   )}
-                                  <span>{Math.abs(token.change24h || 0).toFixed(2)}%</span>
+                                  <span>{token.change24h === undefined ? '—' : `${Math.abs(token.change24h).toFixed(2)}%`}</span>
                                 </span>
-                              </td>
+                              </TableCell>
 
                               {/* Total USD value */}
-                              <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400">
-                                {formatCurrency(token.balanceUsd)}
-                              </td>
+                              <TableCell className="px-4 text-right font-mono font-bold text-emerald-400">
+                                {token.priceAvailable === false ? <span className="text-amber-400">Chưa định giá</span> : formatCurrency(token.balanceUsd)}
+                              </TableCell>
 
                               {/* Allocation % */}
-                              <td className="py-3.5 px-4 text-right font-mono text-slate-300">
-                                <span className="px-2 py-0.5 rounded bg-[#161b22] border border-slate-700 font-bold">
+                              <TableCell className="px-4 text-right font-mono text-muted-foreground">
+                                <Badge variant="secondary" className="font-mono">
                                   {token.allocationPercentage || 0}%
-                                </span>
-                              </td>
+                                </Badge>
+                              </TableCell>
 
                               {/* Contract / Explorer */}
-                              <td className="py-3.5 px-4 text-center">
+                              <TableCell className="px-4 text-center">
                                 {token.contractAddress ? (
                                   <div className="flex items-center justify-center space-x-1">
-                                    <button
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
                                       onClick={(e) => handleCopy(token.contractAddress!, `tok-${token.id}`, e)}
-                                      className="p-1 rounded text-slate-400 hover:text-white hover:bg-[#21262d] transition-colors"
+                                      className="size-7"
+                                      aria-label={`Sao chép hợp đồng ${token.symbol}`}
                                       title={`Sao chép hợp đồng: ${token.contractAddress}`}
                                     >
                                       {copiedId === `tok-${token.id}` ? (
@@ -915,46 +899,36 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                                       ) : (
                                         <Copy className="w-3.5 h-3.5" />
                                       )}
-                                    </button>
+                                    </Button>
                                     <a
                                       href={tokenExplorer || '#'}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="p-1 rounded text-slate-400 hover:text-cyan-400 hover:bg-[#21262d] transition-colors"
+                                      className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
                                       title="Xem trên Explorer"
                                     >
                                       <ExternalLink className="w-3.5 h-3.5" />
                                     </a>
-                                    {!token.isNative && (
-                                      <button
-                                        onClick={(e) => handleDeleteToken(token.id, e)}
-                                        className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-[#21262d] transition-colors"
-                                        title="Xóa / Ẩn token này khỏi ví"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
                                   </div>
                                 ) : (
                                   <span className="text-[10px] text-slate-500 italic">Native</span>
                                 )}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           );
                         })
                       )}
-                    </tbody>
-                  </table>
-                </div>
+                    </TableBody>
+                  </Table>
               </div>
 
               {/* Add Custom Token Contract Scan */}
-              <div className="p-4 bg-[#0d1117] rounded-xl border border-[#21262d]">
-                <div className="flex items-center space-x-2 text-xs font-bold text-white mb-1.5">
+              <Card className="p-4">
+                <div className="flex items-center space-x-2 text-xs font-bold text-foreground mb-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                   <span>Quét thêm Token hợp đồng tùy chỉnh (Custom Contract Address)</span>
                 </div>
-                <p className="text-[11px] text-slate-400 mb-3">
+                <p className="text-[11px] text-muted-foreground mb-3">
                   Nếu ví sở hữu token ERC-20 / SPL chưa có trong danh sách mặc định, hãy nhập địa chỉ Smart Contract để hệ thống truy vấn số dư on-chain ngay lập tức.
                 </p>
 
@@ -966,116 +940,116 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                 )}
 
                 <form onSubmit={handleScanCustomToken} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <input
+                  <Input
                     type="text"
                     placeholder="VD: 0xdAC17F958D2ee523a2206206994597C13D831ec7 (Tether USD)..."
                     value={customContract}
                     onChange={(e) => setCustomContract(e.target.value)}
-                    className="flex-1 bg-[#161b22] border border-[#30363d] rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    className="h-9 flex-1 bg-background font-mono text-xs"
                   />
-                  <button
+                  <Button
                     type="submit"
                     disabled={scanningContract || !customContract.trim()}
-                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-slate-950 font-bold text-xs transition-colors flex items-center justify-center space-x-1.5 flex-shrink-0"
+                    className="h-9 bg-primary text-primary-foreground"
                   >
                     {scanningContract && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                     <span>{scanningContract ? 'Đang truy vấn...' : 'Quét Token'}</span>
-                  </button>
+                  </Button>
                 </form>
-              </div>
+              </Card>
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-[#21262d] bg-[#0d1117] flex items-center justify-between">
+            <div className="p-4 border-t bg-muted/30 flex items-center justify-between">
               <div className="text-[11px] text-slate-500 flex items-center space-x-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
                 <span className="hidden sm:inline">Chế độ View-Only an toàn 100%. Dữ liệu được trích xuất trực tiếp từ RPC Node công khai.</span>
                 <span className="sm:hidden">View-Only an toàn 100%</span>
               </div>
               <div className="flex items-center space-x-2">
-                <button
+                <Button
                   type="button"
+                  variant="destructive"
                   onClick={() => setWalletToDelete(selectedWallet)}
-                  className="px-4 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 font-semibold text-xs transition-colors flex items-center space-x-1.5"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Xóa ví</span>
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => setSelectedWallet(null)}
-                  className="px-5 py-2 rounded-xl bg-[#21262d] hover:bg-[#30363d] text-white font-semibold text-xs transition-colors"
                 >
                   Đóng
-                </button>
+                </Button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
 
       {/* ============================================================ */}
       {/* MODAL 2: IN-APP DELETE WALLET CONFIRMATION (NO window.confirm) */}
       {/* ============================================================ */}
+      <Dialog open={Boolean(walletToDelete)} onOpenChange={(open) => { if (!open && !deleting) setWalletToDelete(null); }}>
       {walletToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
-          <div className="bg-[#161b22] border border-rose-500/30 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mx-auto mb-4">
+        <DialogContent className="max-w-md border-border bg-card text-card-foreground">
+              <div className="w-12 h-12 rounded-full bg-destructive/10 border border-destructive/30 flex items-center justify-center text-destructive mx-auto mb-4">
               <Trash2 className="w-6 h-6" />
             </div>
 
-            <h3 className="text-lg font-bold text-white text-center">
+            <DialogTitle className="text-lg font-bold text-center">
               Xác nhận xóa ví theo dõi
-            </h3>
+            </DialogTitle>
 
-            <p className="text-xs text-slate-400 text-center mt-2 leading-relaxed">
-              Bạn có chắc chắn muốn xóa ví <strong className="text-white font-semibold">{walletToDelete.label}</strong> ({walletToDelete.chain}) khỏi danh sách theo dõi?
-            </p>
+            <DialogDescription className="text-xs text-center mt-2 leading-relaxed">
+              Bạn có chắc chắn muốn xóa ví <strong className="text-foreground font-semibold">{walletToDelete.label}</strong> ({walletToDelete.chain}) khỏi danh sách theo dõi?
+            </DialogDescription>
 
-            <div className="mt-3 p-3 bg-[#0d1117] rounded-xl border border-[#21262d] text-center font-mono text-xs text-slate-300 truncate">
+            <div className="mt-3 p-3 bg-muted rounded-md border border-border text-center font-mono text-xs text-muted-foreground truncate">
               {walletToDelete.address}
             </div>
 
-            <p className="text-[11px] text-slate-500 text-center mt-2">
+            <p className="text-[11px] text-muted-foreground text-center mt-2">
               Lưu ý: Thao tác này chỉ xóa ví khỏi danh sách theo dõi cá nhân của bạn, không ảnh hưởng đến tài sản trên blockchain. Bạn có thể thêm lại bất cứ lúc nào.
             </p>
 
             <div className="mt-6 flex items-center justify-end space-x-3">
-              <button
+              <Button variant="outline"
                 type="button"
                 onClick={() => setWalletToDelete(null)}
                 disabled={deleting}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-[#21262d] text-slate-300 hover:text-white font-medium text-xs transition-colors"
+                className="flex-1"
               >
                 Hủy bỏ
-              </button>
-              <button
+              </Button>
+              <Button variant="destructive"
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={deleting}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition-colors shadow-lg shadow-rose-900/20 flex items-center justify-center space-x-1.5"
+                className="flex-1"
               >
                 {deleting && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                 <span>{deleting ? 'Đang xóa...' : 'Xác nhận xóa ví'}</span>
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+        </DialogContent>
       )}
+      </Dialog>
 
       {/* ============================================================ */}
       {/* MODAL 3: ADD VIEW-ONLY WALLET MODAL */}
       {/* ============================================================ */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-[#161b22] border border-[#30363d] rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <h3 className="text-lg font-bold text-white flex items-center space-x-2">
+      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
+        <DialogContent className="max-w-md border-border bg-card p-6 text-card-foreground">
+            <DialogTitle className="flex items-center gap-2 text-lg font-semibold">
               <WalletIcon className="w-5 h-5 text-emerald-400" />
               <span>Thêm Ví View-Only (Chỉ Xem)</span>
-            </h3>
-            <p className="text-xs text-slate-400 mt-1">
-              Chỉ nhập Public Address công khai. Hệ thống sẽ quét toàn bộ số dư và các coin on-chain thực tế.
-            </p>
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-sm">
+              Chỉ nhập Public Address. Hệ thống truy vấn số dư on-chain từ indexer/RPC công khai; khả năng liệt kê token tùy theo từng mạng.
+            </DialogDescription>
 
             {errorMsg && (
               <div className="mt-3 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-center space-x-2">
@@ -1086,52 +1060,56 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
 
             <form onSubmit={handleAddWallet} className="mt-4 space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Mạng Blockchain</label>
-                <select
+                <Label className="mb-1 block" htmlFor="wallet-chain">Mạng Blockchain</Label>
+                <Select
                   value={chain}
-                  onChange={(e) => {
-                    const newChain = e.target.value as ChainType;
-                    setChain(newChain);
-                  }}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500 font-mono"
+                  onValueChange={(value) => setChain(value as ChainType)}
                 >
-                  <option value="ETH">Ethereum (ETH / ERC-20)</option>
-                  <option value="SOL">Solana (SOL / SPL)</option>
-                  <option value="BTC">Bitcoin (BTC Native / SegWit)</option>
-                  <option value="BSC">BNB Smart Chain (BEP-20)</option>
-                  <option value="POLYGON">Polygon Network (POL)</option>
-                  <option value="ARBITRUM">Arbitrum One (ETH)</option>
-                </select>
+                  <SelectTrigger id="wallet-chain" className="font-mono">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ETH">Ethereum (ETH / ERC-20)</SelectItem>
+                    <SelectItem value="SOL">Solana (SOL / SPL)</SelectItem>
+                    <SelectItem value="BTC">Bitcoin (BTC Native / SegWit)</SelectItem>
+                    <SelectItem value="BSC">BNB Smart Chain (BEP-20)</SelectItem>
+                    <SelectItem value="POLYGON">Polygon Network (POL)</SelectItem>
+                    <SelectItem value="ARBITRUM">Arbitrum One (ETH)</SelectItem>
+                    <SelectItem value="BASE">Base (ETH)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-300 font-medium">Tên nhãn gợi nhớ</label>
-                  <button
+                  <Label htmlFor="wallet-label">Tên nhãn gợi nhớ</Label>
+                  <Button variant="ghost" size="sm"
                     type="button"
                     onClick={handleFillSample}
-                    className="text-[10px] text-cyan-400 hover:text-cyan-300 underline"
+                    className="h-auto p-0 text-xs"
                   >
                     Điền ví mẫu để test
-                  </button>
+                  </Button>
                 </div>
-                <input
+                <Input
                   type="text"
+                  id="wallet-label"
                   placeholder="VD: Ví lạnh Trezor, Ví cá nhân..."
                   value={label}
                   onChange={(e) => setLabel(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-emerald-500"
+                  className="h-9 bg-background text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-medium mb-1">
+                <Label className="mb-1 block" htmlFor="wallet-address">
                   Địa chỉ Ví công khai (Public Address)
-                </label>
-                <input
+                </Label>
+                <Input
                   type="text"
+                  id="wallet-address"
                   placeholder={
-                    chain === 'ETH' || chain === 'BSC' || chain === 'POLYGON' || chain === 'ARBITRUM'
+                    chain === 'ETH' || chain === 'BSC' || chain === 'POLYGON' || chain === 'ARBITRUM' || chain === 'BASE'
                       ? '0x...'
                       : chain === 'SOL'
                       ? 'Địa chỉ Solana Base58...'
@@ -1139,11 +1117,11 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                   }
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                  className="h-9 bg-background font-mono text-sm"
                 />
               </div>
 
-              <div className="p-3 bg-[#0d1117] rounded-xl border border-emerald-500/30 text-emerald-300 text-[11px] leading-relaxed flex items-start space-x-2">
+              <div className="p-3 bg-muted rounded-md border border-primary/30 text-primary text-[11px] leading-relaxed flex items-start space-x-2">
                 <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
                 <span>
                   <strong>An toàn 100%:</strong> Chỉ truy vấn số dư on-chain từ Public RPC. Không yêu cầu Private Key hay ký giao dịch.
@@ -1151,82 +1129,74 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#21262d] text-slate-300 hover:text-white font-medium text-xs transition-colors"
                 >
                   Hủy bỏ
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={loading}
-                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition-colors shadow-md flex items-center space-x-1.5"
+                  className="h-9 bg-primary text-primary-foreground"
                 >
                   {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{loading ? 'Đang quét on-chain...' : 'Bắt đầu theo dõi'}</span>
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Wallet Label Modal */}
+      <Dialog open={Boolean(walletToEdit)} onOpenChange={(open) => { if (!open) setWalletToEdit(null); }}>
       {walletToEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-[#161b22] border border-[#30363d] rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            <button
-              onClick={() => setWalletToEdit(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#21262d] transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+        <DialogContent className="max-w-md border-border bg-card text-card-foreground">
 
-            <div className="flex items-center space-x-3 pb-3 border-b border-[#21262d]">
+            <div className="flex items-center space-x-3 pb-3 border-b border-border">
               <div className="w-9 h-9 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
                 <Edit2 className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="font-bold text-white text-sm">Đổi tên nhãn ví theo dõi</h4>
-                <p className="text-xs text-slate-400 font-mono truncate max-w-[240px]">{walletToEdit.address}</p>
+                <DialogTitle className="font-bold text-sm">Đổi tên nhãn ví theo dõi</DialogTitle>
+                <DialogDescription className="text-xs font-mono truncate max-w-[240px]">Địa chỉ: {walletToEdit.address}</DialogDescription>
               </div>
             </div>
 
             <form onSubmit={handleSaveWalletLabel} className="mt-4 space-y-3.5 text-xs">
               <div>
-                <label className="block text-slate-300 font-medium mb-1">Tên nhãn ví mới</label>
-                <input
+                <Label className="mb-1 block" htmlFor="edit-wallet-label">Tên nhãn ví mới</Label>
+                <Input
                   type="text"
+                  id="edit-wallet-label"
                   required
                   value={editWalletLabel}
                   onChange={(e) => setEditWalletLabel(e.target.value)}
                   placeholder="VD: Ví lạnh dài hạn, Ví Phantom phụ..."
-                  className="w-full bg-[#0d1117] border border-[#30363d] rounded-xl px-3 py-2 text-white text-xs focus:outline-none focus:border-cyan-500"
+                  className="h-9 bg-background text-foreground"
                 />
               </div>
 
               <div className="flex items-center justify-end space-x-2.5 pt-2">
-                <button
+                <Button variant="outline"
                   type="button"
                   onClick={() => setWalletToEdit(null)}
-                  className="px-4 py-2 rounded-xl bg-[#21262d] text-slate-300 hover:text-white font-medium text-xs transition-colors"
                 >
                   Hủy
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
                   disabled={savingWalletLabel}
-                  className="px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 transition-colors shadow-md"
                 >
                   {savingWalletLabel ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                   <span>Lưu thay đổi</span>
-                </button>
+                </Button>
               </div>
             </form>
-          </div>
-        </div>
+        </DialogContent>
       )}
+      </Dialog>
     </div>
   );
 };

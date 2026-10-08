@@ -1,4 +1,4 @@
-export type ChainType = 'ETH' | 'BSC' | 'POLYGON' | 'ARBITRUM' | 'SOL' | 'BTC';
+export type ChainType = 'ETH' | 'BSC' | 'POLYGON' | 'ARBITRUM' | 'BASE' | 'SOL' | 'BTC';
 
 export interface UserSettings {
   id: string;
@@ -20,6 +20,7 @@ export interface WalletToken {
   balance: number;
   balanceUsd: number;
   priceUsd: number;
+  priceAvailable?: boolean;
   change24h?: number;
   contractAddress?: string;
   isNative: boolean;
@@ -40,6 +41,7 @@ export interface Wallet {
   nativeBalance: number;
   nativeSymbol: string;
   tokensCount: number;
+  unpricedAssetsCount?: number;
   tokens?: WalletToken[];
   createdAt: string;
 }
@@ -71,11 +73,12 @@ export interface Holding {
   amount: number;
   avgBuyPrice: number;
   totalInvested: number;
-  currentPrice: number;
-  currentValue: number;
-  priceChange24h: number;
-  unrealizedPnL: number;
-  unrealizedPnLPercentage: number;
+  currentPrice: number | null;
+  currentValue: number | null;
+  priceChange24h: number | null;
+  priceAvailable?: boolean;
+  unrealizedPnL: number | null;
+  unrealizedPnLPercentage: number | null;
   allocationPercentage: number;
   sparkline7d: number[];
   notes?: string;
@@ -85,11 +88,14 @@ export interface Holding {
 export interface PortfolioSummary {
   totalValueUsd: number;
   totalInvestedUsd: number;
-  totalProfitLossUsd: number;
-  totalProfitLossPercentage: number;
-  change24hUsd: number;
-  change24hPercentage: number;
+  totalProfitLossUsd: number | null;
+  realizedProfitLossUsd: number;
+  totalProfitLossPercentage: number | null;
+  change24hUsd: number | null;
+  change24hPercentage: number | null;
   holdingsCount: number;
+  unpricedHoldingsCount?: number;
+  isValuationComplete?: boolean;
   bestPerformer?: {
     symbol: string;
     gainPercentage: number;
@@ -114,6 +120,9 @@ export interface PriceAlert {
   triggeredAt?: string;
   lastNotificationStatus?: 'SUCCESS' | 'FAILED' | 'PENDING';
   createdAt: string;
+  walletAssetId?: string;
+  chain?: ChainType;
+  assetAddress?: string;
 }
 
 export interface MarketTicker {
@@ -122,12 +131,12 @@ export interface MarketTicker {
   name: string;
   rank: number;
   priceUsd: number;
-  priceChange1h: number;
+  priceChange1h: number | null;
   priceChange24h: number;
-  priceChange7d: number;
-  marketCapUsd: number;
+  priceChange7d: number | null;
+  marketCapUsd: number | null;
   volume24hUsd: number;
-  circulatingSupply: number;
+  circulatingSupply: number | null;
   sparkline7d: number[];
   high24h: number;
   low24h: number;

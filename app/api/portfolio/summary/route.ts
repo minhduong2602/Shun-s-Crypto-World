@@ -1,26 +1,24 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
+import { getServerSupabase } from '@/lib/supabase/server';
+import { getLivePortfolio, summarizeHoldings } from '@/lib/portfolio/repository';
 
 export async function GET() {
   try {
-    const summary = await db.getLivePortfolioSummary();
-    const holdings = await db.getLiveHoldings();
-
-    const allocation = holdings.map((h) => ({
-      coinId: h.coinId,
-      symbol: h.symbol,
-      name: h.name,
-      valueUsd: h.currentValue,
-      percentage: h.allocationPercentage,
+    const user = await requireUser();
+    const { holdings, realizedProfitLossUsd, transactions } = await getLivePortfolio(await getServerSupabase(), user.id);
+    const summary = summarizeHoldings(holdings, realizedProfitLossUsd);
+    const allocation = holdings.map((holding) => ({
+      coinId: holding.coinId,
+      symbol: holding.symbol,
+      name: holding.name,
+      valueUsd: holding.currentValue,
+      percentage: holding.allocationPercentage,
     }));
-
-    return NextResponse.json({
-      summary,
-      allocation,
-      isLive: true,
-      lastUpdated: new Date().toISOString(),
-    });
+    return NextResponse.json({ holdings, summary, allocation, transactions, isLive: true, lastUpdated: new Date().toISOString() });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi tải tổng quan danh mục: ' + String(error) }, { status: 500 });
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để xem danh mục' }, { status: 401 });
+    console.error('Portfolio summary API error:', error);
+    return NextResponse.json({ error: 'Không thể tải tổng quan danh mục lúc này' }, { status: 500 });
   }
 }

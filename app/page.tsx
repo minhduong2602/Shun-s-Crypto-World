@@ -4,26 +4,22 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell, type AppTab } from '@/components/app-shell';
 import { PortfolioDashboard } from '@/components/dashboard/portfolio-dashboard';
-import { PortfolioHero } from '@/components/PortfolioHero';
-import { HoldingsTable } from '@/components/HoldingsTable';
-import { AssetAllocationDonut } from '@/components/AssetAllocationDonut';
 import { TechnicalChart } from '@/components/TechnicalChart';
 import { MarketWatchlist } from '@/components/MarketWatchlist';
 import { ViewOnlyWallets } from '@/components/ViewOnlyWallets';
 import { AiPortfolioDoctor } from '@/components/AiPortfolioDoctor';
-import { TransactionHistory } from '@/components/TransactionHistory';
 import { AddTransactionModal } from '@/components/AddTransactionModal';
 import { TelegramAlertsModal } from '@/components/TelegramAlertsModal';
-import { TwoFactorModal } from '@/components/TwoFactorModal';
+import { DataStatus } from '@/components/dashboard/data-status';
+import { Skeleton } from '@/components/ui/skeleton';
+import { createSingleFlightPoller } from '@/lib/async/single-flight-poller';
 import {
   Holding,
   PortfolioSummary,
   MarketTicker,
   Wallet,
   Transaction,
-  AiRecommendation,
 } from '@/lib/types';
-import { RefreshCw } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -36,17 +32,17 @@ export default function Home() {
   const [preselectedCoin, setPreselectedCoin] = useState<{
     symbol: string;
     name?: string;
-    currentPrice?: number;
-    price?: number;
+    currentPrice?: number | null;
+    price?: number | null;
   } | null>(null);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
-  const [show2faModal, setShow2faModal] = useState(false);
 
   // App data state
   const [summary, setSummary] = useState<PortfolioSummary>({
     totalValueUsd: 0,
     totalInvestedUsd: 0,
     totalProfitLossUsd: 0,
+    realizedProfitLossUsd: 0,
     totalProfitLossPercentage: 0,
     change24hUsd: 0,
     change24hPercentage: 0,
@@ -57,9 +53,9 @@ export default function Home() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [tickers, setTickers] = useState<MarketTicker[]>([]);
   const [globalMetrics, setGlobalMetrics] = useState<any>(undefined);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
-  const [telegramConfigured, setTelegramConfigured] = useState(false);
+  const [usdVndRate, setUsdVndRate] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -69,48 +65,87 @@ export default function Home() {
 
   useEffect(() => {
     let ignore = false;
-    async function startFetch() {
+    fetch('/api/settings').then(async (response) => {
+      if (!response.ok) return null;
+      return response.json();
+    }).then((settings) => {
+      if (!ignore && (settings?.baseCurrency === 'USD' || settings?.baseCurrency === 'VND')) {
+        setBaseCurrency(settings.baseCurrency);
+      }
+    }).catch(() => {
+      // Currency display falls back to USD if settings are temporarily unavailable.
+    });
+    return () => { ignore = true; };
+  }, []);
+
+  const handleBaseCurrencyChange = useCallback(async (currency: 'USD' | 'VND') => {
+    const previousCurrency = baseCurrency;
+    setBaseCurrency(currency);
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ baseCurrency: currency }),
+      });
+      if (!response.ok) throw new Error('Không lưu được đơn vị tiền tệ');
+    } catch {
+      setBaseCurrency(previousCurrency);
+    }
+  }, [baseCurrency]);
+
+  useEffect(() => {
+    let ignore = false;
+    const fetchJson = async (path: string) => {
+      const response = await fetch(path);
+      const data = await response.json();
+      return { response, data };
+    };
+
+    async function startFetch(): Promise<void> {
       try {
-        const [summaryRes, holdingsRes, txRes, walletsRes, marketRes, authRes] = await Promise.all([
-          fetch('/api/portfolio/summary').then((r) => r.json()),
-          fetch('/api/portfolio/holdings').then((r) => r.json()),
-          fetch('/api/portfolio/transactions').then((r) => r.json()),
-          fetch('/api/wallets').then((r) => r.json()),
-          fetch('/api/market/tickers').then((r) => r.json()),
-          fetch('/api/auth/status').then((r) => r.json()),
+        const [summaryRes, walletsRes, marketRes, authRes] = await Promise.all([
+          fetchJson('/api/portfolio/summary'),
+          fetchJson('/api/wallets'),
+          fetchJson('/api/market/tickers'),
+          fetchJson('/api/auth/status'),
         ]);
 
         if (ignore) return;
 
-        if (!authRes.isAuthenticated) {
+        if (authRes.response.status === 401 || (authRes.response.ok && !authRes.data.isAuthenticated)) {
           router.replace('/login');
           return;
         }
 
-        if (summaryRes.summary) setSummary(summaryRes.summary);
-        if (holdingsRes.holdings) setHoldings(holdingsRes.holdings);
-        if (txRes.transactions) setTransactions(txRes.transactions);
-        if (walletsRes.wallets) setWallets(walletsRes.wallets);
-        if (marketRes.tickers) {
-          setTickers(marketRes.tickers);
-          setGlobalMetrics(marketRes.globalMetrics);
+        const failedRequest = [summaryRes, walletsRes, marketRes, authRes]
+          .find((result) => !result.response.ok);
+        if (failedRequest) {
+          throw new Error(failedRequest.data.error || 'Máy chủ từ chối yêu cầu tải dữ liệu.');
         }
-        if (authRes) {
-          setTwoFactorEnabled(Boolean(authRes.twoFactorEnabled));
-          setTelegramConfigured(Boolean(authRes.telegramConfigured));
+
+        if (summaryRes.data.summary) setSummary(summaryRes.data.summary);
+        if (summaryRes.data.holdings) setHoldings(summaryRes.data.holdings);
+        if (summaryRes.data.transactions) setTransactions(summaryRes.data.transactions);
+        if (walletsRes.data.wallets) setWallets(walletsRes.data.wallets);
+        if (marketRes.data.tickers) {
+          setTickers(marketRes.data.tickers);
+          setGlobalMetrics(marketRes.data.globalMetrics);
         }
-      } catch (err) {
-        console.error('Lỗi nạp dữ liệu:', err);
+        setUsdVndRate(Number.isFinite(marketRes.data.usdVndRate) && marketRes.data.usdVndRate > 0 ? marketRes.data.usdVndRate : null);
+        setDataError(null);
+      } catch (error) {
+        if (!ignore) setDataError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ để tải dữ liệu.');
+        console.error('Lỗi nạp dữ liệu:', error);
       } finally {
         if (!ignore) setLoading(false);
       }
     }
 
-    void startFetch();
-    const interval = setInterval(startFetch, 8000);
+    const poller = createSingleFlightPoller(startFetch, 30_000);
+    poller.start();
     return () => {
       ignore = true;
-      clearInterval(interval);
+      poller.stop();
     };
   }, [refreshTrigger, router]);
 
@@ -124,21 +159,34 @@ export default function Home() {
     setShowAddTxModal(true);
   };
 
+  const handleAddTransaction = () => {
+    setPreselectedCoin(null);
+    setShowAddTxModal(true);
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.replace('/login');
+  };
+
   const titles: Record<AppTab, string> = { portfolio: 'Danh mục', market: 'Thị trường', chart: 'Biểu đồ', wallets: 'Ví theo dõi', ai: 'Trợ lý AI' };
 
   return (
-    <AppShell activeTab={activeTab} onTabChange={setActiveTab} title={titles[activeTab]} onRefresh={loadData}>
+    <AppShell activeTab={activeTab} onTabChange={setActiveTab} title={titles[activeTab]} baseCurrency={baseCurrency} onBaseCurrencyChange={handleBaseCurrencyChange} onRefresh={loadData} onAddTransaction={handleAddTransaction} onOpenAlerts={() => setShowTelegramModal(true)} onLogout={handleLogout}>
+        <DataStatus error={dataError} onRetry={loadData} />
         {loading && holdings.length === 0 ? (
-          <div className="h-96 flex flex-col items-center justify-center space-y-3 text-slate-400">
-            <RefreshCw className="w-8 h-8 animate-spin text-emerald-400" />
-            <p className="text-xs font-mono">Đang kết nối dữ liệu Shun&apos;s Crypto World...</p>
+          <div role="status" aria-label="Đang tải dữ liệu danh mục" className="space-y-4">
+            <span className="sr-only">Đang tải dữ liệu danh mục…</span>
+            <div className="grid gap-4 md:grid-cols-3"><Skeleton className="h-32 md:col-span-2" /><Skeleton className="h-32" /></div>
+            <Skeleton className="h-16" />
+            <Skeleton className="h-72" />
           </div>
         ) : (
           <>
             {/* Tab: Portfolio Overview */}
             {activeTab === 'portfolio' && (
               <div>
-                <PortfolioDashboard summary={summary} holdings={holdings} wallets={wallets} loading={loading} />
+                <PortfolioDashboard summary={summary} holdings={holdings} wallets={wallets} transactions={transactions} baseCurrency={baseCurrency} usdVndRate={usdVndRate} loading={loading} onRefresh={loadData} onSelectCoinForChart={handleSelectCoinForChart} onAddTransactionForCoin={handleOpenAddTxWithCoin} />
               </div>
             )}
 
@@ -147,6 +195,7 @@ export default function Home() {
               <MarketWatchlist
                 tickers={tickers}
                 baseCurrency={baseCurrency}
+                usdVndRate={usdVndRate}
                 onSelectCoinForChart={handleSelectCoinForChart}
                 onOpenAddTransaction={(coin) => {
                   setPreselectedCoin(coin || null);
@@ -162,6 +211,7 @@ export default function Home() {
                 selectedCoinId={selectedCoinId}
                 onSelectCoin={setSelectedCoinId}
                 baseCurrency={baseCurrency}
+                usdVndRate={usdVndRate}
               />
             )}
 
@@ -170,6 +220,7 @@ export default function Home() {
               <ViewOnlyWallets
                 wallets={wallets}
                 baseCurrency={baseCurrency}
+                usdVndRate={usdVndRate}
                 onRefresh={loadData}
               />
             )}
@@ -197,12 +248,6 @@ export default function Home() {
         baseCurrency={baseCurrency}
       />
 
-      <TwoFactorModal
-        isOpen={show2faModal}
-        onClose={() => setShow2faModal(false)}
-        twoFactorEnabled={twoFactorEnabled}
-        onSuccess={loadData}
-      />
     </AppShell>
   );
 }

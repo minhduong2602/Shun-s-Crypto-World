@@ -1,53 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
-import { verifyTotpCode } from '@/lib/crypto-totp';
+import { NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
-  try {
-    const { code, isEnabling, action } = await req.json();
-    const settings = db.getSettings();
-
-    const secret = settings.twoFactorSecret;
-    if (!secret) {
-      return NextResponse.json({ error: 'Chưa khởi tạo khóa bí mật 2FA' }, { status: 400 });
-    }
-
-    const isValid = verifyTotpCode(secret, code);
-    if (!isValid) {
-      return NextResponse.json({ error: 'Mã OTP 6 chữ số không hợp lệ hoặc đã hết hạn' }, { status: 400 });
-    }
-
-    if (action === 'disable') {
-      db.updateSettings({ twoFactorEnabled: false, twoFactorSecret: undefined });
-      return NextResponse.json({
-        success: true,
-        twoFactorEnabled: false,
-        message: 'Đã tắt xác thực hai yếu tố (2FA)',
-      });
-    }
-
-    // If verifying to enable 2FA for the first time
-    if (isEnabling || !settings.twoFactorEnabled) {
-      db.updateSettings({ twoFactorEnabled: true });
-    }
-
-    const sessionToken = db.createSessionToken();
-    const res = NextResponse.json({
-      success: true,
-      twoFactorEnabled: true,
-      message: 'Xác thực 2 lớp thành công!',
-    });
-
-    res.cookies.set('shun_session', sessionToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 86400 * 30,
-    });
-
-    return res;
-  } catch (error) {
-    return NextResponse.json({ error: 'Lỗi xác minh 2FA: ' + String(error) }, { status: 500 });
-  }
+export async function POST() {
+  return NextResponse.json({ error: '2FA được quản lý trong Supabase Auth; endpoint cũ đã ngừng hỗ trợ.' }, { status: 410 });
 }

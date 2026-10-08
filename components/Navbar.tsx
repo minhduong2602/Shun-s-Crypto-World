@@ -24,12 +24,8 @@ interface NavbarProps {
   onOpenTelegram: () => void;
   telegramConfigured: boolean;
   globalMetrics?: {
-    totalMarketCapUsd: number;
-    totalVolume24hUsd: number;
-    btcDominance: number;
-    gasGwei: number;
-    fearAndGreedIndex: number;
-    sentimentText: string;
+    totalVolume24hUsd?: number;
+    activePairs?: number;
   };
   baseCurrency: string;
   onToggleCurrency: () => void;
@@ -52,38 +48,14 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="hidden lg:flex items-center justify-between px-6 py-1.5 text-xs text-slate-400 border-b border-[#1f242c] overflow-x-auto">
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-1.5">
-            <span className="text-slate-500">Cryptos:</span>
-            <span className="text-blue-400 font-medium">14,280+</span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="text-slate-500">Vốn hóa thị trường:</span>
-            <span className="text-slate-200 font-medium">
-              ${((globalMetrics?.totalMarketCapUsd || 3150000000000) / 1e12).toFixed(2)}T
-            </span>
+            <span className="text-slate-500">Cặp giao dịch:</span>
+            <span className="text-blue-400 font-medium">{globalMetrics?.activePairs ?? '—'}</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <span className="text-slate-500">Volume 24h:</span>
             <span className="text-slate-200 font-medium">
-              ${((globalMetrics?.totalVolume24hUsd || 142000000000) / 1e9).toFixed(1)}B
+              {globalMetrics?.totalVolume24hUsd == null ? '—' : `$${(globalMetrics.totalVolume24hUsd / 1e9).toFixed(1)}B`}
             </span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <span className="text-slate-500">BTC Dom:</span>
-            <span className="text-amber-400 font-medium">
-              {globalMetrics?.btcDominance || 58.4}%
-            </span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <Flame className="w-3.5 h-3.5 text-emerald-400 inline" />
-            <span className="text-slate-500">Fear & Greed:</span>
-            <span className="text-emerald-400 font-semibold">
-              {globalMetrics?.fearAndGreedIndex || 74} ({globalMetrics?.sentimentText || 'Greed'})
-            </span>
-          </div>
-          <div className="flex items-center space-x-1.5">
-            <Zap className="w-3.5 h-3.5 text-amber-300 inline" />
-            <span className="text-slate-500">ETH Gas:</span>
-            <span className="text-slate-300 font-medium">{globalMetrics?.gasGwei || 12} Gwei</span>
           </div>
         </div>
 
@@ -97,7 +69,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
           <div className="flex items-center space-x-1 text-slate-400 text-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Real-time Binance & CMC Data</span>
+            <span>Giá giao dịch trực tiếp từ sàn</span>
           </div>
         </div>
       </div>

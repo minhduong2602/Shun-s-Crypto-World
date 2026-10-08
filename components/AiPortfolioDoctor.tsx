@@ -14,6 +14,11 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { AiRecommendation } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface AiPortfolioDoctorProps {
   initialAnalysis: AiRecommendation | null;
@@ -22,17 +27,21 @@ interface AiPortfolioDoctorProps {
 export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAnalysis }) => {
   const [analysis, setAnalysis] = useState<AiRecommendation | null>(initialAnalysis);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleRunAnalysis = async () => {
     setLoading(true);
+    setError('');
     try {
       const res = await fetch('/api/ai/analyze', { method: 'POST' });
       const data = await res.json();
       if (data.analysis) {
         setAnalysis(data.analysis);
+      } else {
+        setError(data.error || 'Không thể phân tích danh mục.');
       }
     } catch (e) {
-      console.error(e);
+      setError('Không thể kết nối dịch vụ phân tích. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -47,41 +56,38 @@ export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAna
   const getActionBadge = (action: string) => {
     switch (action) {
       case 'ACCUMULATE':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">MUA TÍCH LŨY</span>;
+        return <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">MUA TÍCH LŨY</Badge>;
       case 'TAKE_PROFIT':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">CHỐT LỜI TỪNG PHẦN</span>;
+        return <Badge variant="outline" className="border-amber-500/30 bg-amber-500/10 text-amber-400">CHỐT LỜI TỪNG PHẦN</Badge>;
       case 'REDUCE':
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">HẠ TỶ TRỌNG</span>;
+        return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">HẠ TỶ TRỌNG</Badge>;
       default:
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">NẮM GIỮ (HOLD)</span>;
+        return <Badge variant="secondary">NẮM GIỮ (HOLD)</Badge>;
     }
   };
 
   return (
-    <div className="bg-[#161b22] border border-[#30363d] rounded-2xl p-6 shadow-xl space-y-6">
+    <Card className="space-y-6">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-[#21262d]">
+      <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b">
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
             <Sparkles className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h2 className="text-xl font-bold text-white">Gemini AI Portfolio Doctor</h2>
-              <span className="px-2 py-0.5 text-[10px] bg-cyan-500/15 text-cyan-300 font-mono font-semibold rounded-md border border-cyan-500/30">
-                gemini-3.8-flash
-              </span>
+              <CardTitle>Trợ lý AI danh mục</CardTitle>
+              <Badge variant="secondary" className="font-mono">
+                Gemini Flash
+              </Badge>
             </div>
-            <p className="text-xs text-slate-400">
-              Phân tích định lượng cấu trúc rủi ro, tâm lý chu kỳ và đề xuất tái cân bằng (Rebalancing)
-            </p>
+            <CardDescription>Phân tích danh mục của bạn và nêu rõ các giới hạn dữ liệu.</CardDescription>
           </div>
         </div>
 
-        <button
+        <Button
           onClick={handleRunAnalysis}
           disabled={loading}
-          className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white font-bold text-xs flex items-center space-x-2 shadow-lg shadow-cyan-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           {loading ? (
             <>
@@ -94,17 +100,20 @@ export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAna
               <span>{analysis ? 'Cập nhật phân tích AI mới' : 'Khởi chạy phân tích ngay'}</span>
             </>
           )}
-        </button>
-      </div>
+        </Button>
+      </CardHeader>
+
+      <CardContent className="space-y-6">
+      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
       {/* Main Analysis Results */}
       {analysis ? (
         <div className="space-y-6">
           {/* Executive Summary Card */}
-          <div className="p-4 sm:p-5 bg-[#0d1117] rounded-xl border border-[#21262d] relative overflow-hidden">
+          <div className="p-4 sm:p-5 bg-muted/40 rounded-xl border relative overflow-hidden">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-3">
-              <h3 className="font-bold text-white text-sm flex items-center space-x-2">
-                <Compass className="w-4 h-4 text-cyan-400" />
+              <h3 className="font-bold text-foreground text-sm flex items-center space-x-2">
+                <Compass className="w-4 h-4 text-primary" />
                 <span>Đánh Giá Tổng Quan Từ AI</span>
               </h3>
 
@@ -127,18 +136,18 @@ export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAna
               </div>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">{analysis.summary}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{analysis.summary}</p>
           </div>
 
           {/* Strengths & Warnings Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             {/* Strengths */}
-            <div className="p-4 bg-[#0d1117] rounded-xl border border-[#21262d] space-y-2.5">
+            <div className="p-4 bg-muted/40 rounded-xl border space-y-2.5">
               <h4 className="font-bold text-emerald-400 flex items-center space-x-1.5 text-xs">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Điểm Mạnh Của Danh Mục</span>
               </h4>
-              <ul className="space-y-2 text-slate-300">
+              <ul className="space-y-2 text-muted-foreground">
                 {analysis.portfolioStrengths.map((str, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
                     <span className="text-emerald-500 font-bold">•</span>
@@ -149,12 +158,12 @@ export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAna
             </div>
 
             {/* Warnings */}
-            <div className="p-4 bg-[#0d1117] rounded-xl border border-[#21262d] space-y-2.5">
+            <div className="p-4 bg-muted/40 rounded-xl border space-y-2.5">
               <h4 className="font-bold text-amber-400 flex items-center space-x-1.5 text-xs">
                 <AlertTriangle className="w-4 h-4" />
                 <span>Cảnh Báo &amp; Điểm Cần Lưu Ý</span>
               </h4>
-              <ul className="space-y-2 text-slate-300">
+              <ul className="space-y-2 text-muted-foreground">
                 {analysis.riskWarnings.map((warn, idx) => (
                   <li key={idx} className="flex items-start space-x-2">
                     <span className="text-amber-500 font-bold">•</span>
@@ -166,39 +175,39 @@ export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAna
           </div>
 
           {/* Rebalance Recommendations Table */}
-          <div className="p-4 bg-[#0d1117] rounded-xl border border-[#21262d]">
-            <h4 className="font-bold text-white text-xs mb-3 flex items-center space-x-2">
+            <Card className="p-4">
+            <h4 className="font-bold text-foreground text-xs mb-3 flex items-center space-x-2">
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <span>Đề Xuất Tái Cân Bằng Tỷ Trọng (Strategic Rebalancing)</span>
             </h4>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-[#21262d] text-slate-400">
-                    <th className="py-2 px-3">Tài sản</th>
-                    <th className="py-2 px-3">Tỷ trọng hiện tại</th>
-                    <th className="py-2 px-3">Tỷ trọng đề xuất</th>
-                    <th className="py-2 px-3">Hành động gợi ý</th>
-                    <th className="py-2 px-3">Lý do chiến lược</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#21262d] text-slate-300">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tài sản</TableHead>
+                    <TableHead>Tỷ trọng hiện tại</TableHead>
+                    <TableHead>Tỷ trọng đề xuất</TableHead>
+                    <TableHead>Hành động gợi ý</TableHead>
+                    <TableHead>Lý do chiến lược</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {analysis.rebalanceSuggestions.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-[#161b22]">
-                      <td className="py-3 px-3 font-mono font-bold text-white">{item.symbol}</td>
-                      <td className="py-3 px-3 font-mono">{item.currentAllocationPct}%</td>
-                      <td className="py-3 px-3 font-mono text-emerald-400 font-semibold">
+                    <TableRow key={idx}>
+                      <TableCell className="font-mono font-bold">{item.symbol}</TableCell>
+                      <TableCell className="font-mono">{item.currentAllocationPct}%</TableCell>
+                      <TableCell className="font-mono text-emerald-400 font-semibold">
                         {item.targetAllocationPct}%
-                      </td>
-                      <td className="py-3 px-3">{getActionBadge(item.action)}</td>
-                      <td className="py-3 px-3 text-slate-400 text-[11px]">{item.reasoning}</td>
-                    </tr>
+                      </TableCell>
+                      <TableCell>{getActionBadge(item.action)}</TableCell>
+                      <TableCell className="text-muted-foreground text-xs">{item.reasoning}</TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
-          </div>
+            </Card>
 
           {/* Macro Insight */}
           {analysis.macroInsight && (
@@ -209,14 +218,15 @@ export const AiPortfolioDoctor: React.FC<AiPortfolioDoctorProps> = ({ initialAna
           )}
         </div>
       ) : (
-        <div className="py-12 text-center text-slate-400 space-y-3">
-          <Sparkles className="w-10 h-10 text-cyan-400 mx-auto animate-pulse" />
-          <h3 className="text-base font-bold text-white">Chưa có phân tích danh mục nào</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
+          <div className="py-12 text-center text-muted-foreground space-y-3">
+          <Sparkles className="w-10 h-10 text-primary mx-auto animate-pulse" />
+          <h3 className="text-base font-bold text-foreground">Chưa có phân tích danh mục nào</h3>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
             Bấm nút &ldquo;Khởi chạy phân tích ngay&rdquo; để Gemini AI đọc toàn bộ số dư và giao dịch của bạn, sau đó đưa ra lời khuyên tối ưu hóa lợi nhuận và giảm thiểu rủi ro.
           </p>
         </div>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 };

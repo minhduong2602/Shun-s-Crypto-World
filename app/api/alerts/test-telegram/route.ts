@@ -1,64 +1,55 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { requireUser, UnauthorizedError } from '@/lib/auth/require-user';
+import { getServerEnv } from '@/lib/config/env';
+import { getServerSupabase } from '@/lib/supabase/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const { botToken, chatId, saveOnly } = await req.json();
+    const user = await requireUser();
+    const body = await request.json();
+    const chatId = typeof body.chatId === 'string' ? body.chatId.trim() : '';
+    const saveOnly = Boolean(body.saveOnly);
+    if (!chatId) return NextResponse.json({ error: 'Vui lòng nhập Telegram Chat ID' }, { status: 400 });
 
-    if (botToken !== undefined || chatId !== undefined) {
-      db.updateSettings({
-        ...(botToken !== undefined ? { telegramBotToken: botToken.trim() } : {}),
-        ...(chatId !== undefined ? { telegramChatId: chatId.trim() } : {}),
-        telegramAlertsEnabled: true,
+    const env = getServerEnv();
+    if (!env.TELEGRAM_BOT_TOKEN) {
+      return NextResponse.json({ error: 'Máy chủ chưa cấu hình TELEGRAM_BOT_TOKEN' }, { status: 503 });
+    }
+
+    if (!saveOnly) {
+      const telegramResponse = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `🔔 Shun's Crypto World đã kết nối Telegram. Cảnh báo giá sẽ được gửi tới đây.`,
+        }),
+        signal: AbortSignal.timeout(10_000),
       });
+      const telegramResult: unknown = await telegramResponse.json().catch(() => null);
+      const telegramDescription = typeof telegramResult === 'object' && telegramResult !== null && 'description' in telegramResult
+        && typeof telegramResult.description === 'string' ? telegramResult.description : null;
+      const telegramAccepted = typeof telegramResult === 'object' && telegramResult !== null && 'ok' in telegramResult
+        && telegramResult.ok === true;
+      if (!telegramResponse.ok || !telegramAccepted) {
+        return NextResponse.json({ error: telegramDescription || 'Telegram không nhận tin nhắn test' }, { status: 502 });
+      }
     }
 
-    if (saveOnly) {
-      return NextResponse.json({
-        success: true,
-        message: 'Đã lưu thông tin cấu hình Telegram Bot thành công!',
-      });
-    }
+    const supabase = await getServerSupabase();
+    const { error: saveError } = await supabase.from('user_settings').upsert({
+      owner_id: user.id,
+      telegram_chat_id: chatId,
+      telegram_alerts_enabled: true,
+    }, { onConflict: 'owner_id' });
+    if (saveError) throw saveError;
 
-    const settings = db.getSettings();
-    const token = botToken || settings.telegramBotToken;
-    const chat = chatId || settings.telegramChatId;
+    if (saveOnly) return NextResponse.json({ success: true, message: 'Đã lưu Telegram Chat ID.' });
 
-    if (!token || !chat) {
-      return NextResponse.json({
-        error: 'Vui lòng cung cấp cả Telegram Bot Token và Chat ID để gửi tin nhắn thử nghiệm',
-      }, { status: 400 });
-    }
-
-    const testMessage = `🚀 *[Shun's Crypto World]* Cảnh báo thử nghiệm!\n\n` +
-      `🔔 *Hệ thống thông báo Telegram Bot đã kết nối thành công!*\n` +
-      `📊 Thời gian: ${new Date().toLocaleString('vi-VN')}\n` +
-      `💰 Danh mục đang được theo dõi bảo mật 24/7.\n` +
-      `Bạn sẽ nhận được cảnh báo ngay khi giá chạm mục tiêu hoặc có biến động đột biến.`;
-
-    const telegramApiUrl = `https://api.telegram.org/bot${token}/sendMessage`;
-    const tgRes = await fetch(telegramApiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chat,
-        text: testMessage,
-        parse_mode: 'Markdown',
-      }),
-    });
-
-    const tgData = await tgRes.json();
-    if (!tgData.ok) {
-      return NextResponse.json({
-        error: `Telegram API phản hồi lỗi: ${tgData.description || 'Token hoặc Chat ID không hợp lệ'}`,
-      }, { status: 400 });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Đã gửi tin nhắn thông báo thành công đến Telegram của bạn!',
-    });
+    return NextResponse.json({ success: true, message: 'Đã gửi tin nhắn thử nghiệm tới Telegram.' });
   } catch (error) {
-    return NextResponse.json({ error: 'Lỗi gửi tin nhắn Telegram: ' + String(error) }, { status: 500 });
+    if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để cấu hình Telegram' }, { status: 401 });
+    console.error('Telegram setup error:', error);
+    return NextResponse.json({ error: 'Không thể lưu hoặc gửi tin nhắn Telegram lúc này' }, { status: 500 });
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Send,
   X,
@@ -16,12 +16,30 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { PriceAlert, AlertCondition } from '@/lib/types';
-import { DEFAULT_PRICES } from '@/lib/db/store';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TelegramAlertsModalProps {
   isOpen: boolean;
   onClose: () => void;
   baseCurrency: string;
+}
+
+interface WalletAssetOption {
+  id: string;
+  chain: string;
+  symbol: string;
+  name: string;
+  assetAddress: string;
+  isNative: boolean;
 }
 
 export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
@@ -30,17 +48,31 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   baseCurrency,
 }) => {
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
-  const [botToken, setBotToken] = useState('');
+  const [walletAssets, setWalletAssets] = useState<WalletAssetOption[]>([]);
+  const [deliveries, setDeliveries] = useState<Array<{
+    id: string;
+    alertId: string;
+    observedPriceUsd: number | null;
+    observedChange24h: number | null;
+    status: 'pending' | 'sent' | 'failed' | 'skipped';
+    createdAt: string;
+  }>>([]);
   const [chatId, setChatId] = useState('');
   const [loading, setLoading] = useState(false);
   const [testingMsg, setTestingMsg] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null);
+  const [newAlertError, setNewAlertError] = useState<string | null>(null);
+  const [alertActionError, setAlertActionError] = useState<string | null>(null);
+  const [alertLoadError, setAlertLoadError] = useState<string | null>(null);
+  const [creatingAlert, setCreatingAlert] = useState(false);
 
   // New alert form
-  const [newCoinId, setNewCoinId] = useState('bitcoin');
+  const [newSymbol, setNewSymbol] = useState('BTC');
   const [newCondition, setNewCondition] = useState<AlertCondition>('ABOVE');
   const [newTarget, setNewTarget] = useState('95000');
   const [newRecurring, setNewRecurring] = useState(false);
+  const [newWalletAssetId, setNewWalletAssetId] = useState('ticker');
+  const previousNewCondition = useRef(newCondition);
 
   // Editing alert state
   const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
@@ -56,13 +88,17 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   async function loadAlerts() {
     try {
       const res = await fetch('/api/alerts');
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Không thể tải cảnh báo');
       if (data.alerts) setAlerts(data.alerts);
+      if (Array.isArray(data.walletAssets)) setWalletAssets(data.walletAssets);
+      if (Array.isArray(data.deliveries)) setDeliveries(data.deliveries);
       if (data.telegramConfig) {
         setChatId(data.telegramConfig.chatId || '');
       }
-    } catch (e) {
-      console.error(e);
+      setAlertLoadError(null);
+    } catch (error) {
+      setAlertLoadError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
     }
   }
 
@@ -78,6 +114,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   };
 
   const handleSaveEdit = async (id: string) => {
+    setAlertActionError(null);
     try {
       const res = await fetch('/api/alerts', {
         method: 'PUT',
@@ -89,12 +126,12 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
           isRecurring: editRecurring,
         }),
       });
-      if (res.ok) {
-        setEditingAlertId(null);
-        loadAlerts();
-      }
-    } catch (e) {
-      console.error('Lỗi lưu cảnh báo:', e);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Không thể lưu cảnh báo');
+      setEditingAlertId(null);
+      await loadAlerts();
+    } catch (error) {
+      setAlertActionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
     }
   };
 
@@ -106,7 +143,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       const res = await fetch('/api/alerts/test-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ botToken, chatId, saveOnly: true }),
+        body: JSON.stringify({ chatId, saveOnly: true }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -128,7 +165,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       const res = await fetch('/api/alerts/test-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ botToken: botToken || undefined, chatId: chatId || undefined, saveOnly: false }),
+        body: JSON.stringify({ chatId, saveOnly: false }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -145,265 +182,258 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
 
   const handleCreateAlert = async (e: React.FormEvent) => {
     e.preventDefault();
-    const coin = DEFAULT_PRICES[newCoinId] || DEFAULT_PRICES['bitcoin'];
+    setNewAlertError(null);
+    setCreatingAlert(true);
+    const linkedAsset = walletAssets.find((asset) => asset.id === newWalletAssetId);
+    const symbol = (linkedAsset?.symbol ?? newSymbol).trim().toUpperCase();
     try {
       const res = await fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          coinId: newCoinId,
-          symbol: coin.symbol,
+          coinId: symbol.toLowerCase(),
+          symbol,
+          ...(linkedAsset ? { walletAssetId: linkedAsset.id } : {}),
           condition: newCondition,
           targetValue: Number(newTarget),
           isRecurring: newRecurring,
         }),
       });
-      if (res.ok) {
-        loadAlerts();
-      }
-    } catch (e) {
-      console.error(e);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Không thể tạo cảnh báo');
+      await loadAlerts();
+      setNewWalletAssetId('ticker');
+    } catch (error) {
+      setNewAlertError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
+    } finally {
+      setCreatingAlert(false);
     }
   };
 
+  const handleNewConditionChange = (value: string) => {
+    const nextCondition = value as AlertCondition;
+    const currentCondition = previousNewCondition.current;
+    previousNewCondition.current = nextCondition;
+    const currentIsPercentage = currentCondition === 'PCT_UP_24H' || currentCondition === 'PCT_DOWN_24H';
+    const nextIsPercentage = nextCondition === 'PCT_UP_24H' || nextCondition === 'PCT_DOWN_24H';
+    if (currentIsPercentage !== nextIsPercentage) setNewTarget(nextIsPercentage ? '5' : '95000');
+    setNewCondition(nextCondition);
+  };
+
   const handleDeleteAlert = async (id: string) => {
+    setAlertActionError(null);
     try {
       const res = await fetch(`/api/alerts?id=${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        loadAlerts();
-      }
-    } catch (e) {
-      console.error(e);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Không thể xóa cảnh báo');
+      await loadAlerts();
+    } catch (error) {
+      setAlertActionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
     }
   };
 
   const handleToggleAlert = async (id: string) => {
+    setAlertActionError(null);
     try {
       const res = await fetch(`/api/alerts?id=${id}`, { method: 'PATCH' });
-      if (res.ok) {
-        loadAlerts();
-      }
-    } catch (e) {
-      console.error(e);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Không thể cập nhật cảnh báo');
+      await loadAlerts();
+    } catch (error) {
+      setAlertActionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
     }
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-[#161b22] border border-[#30363d] rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative my-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-[#21262d] transition-colors"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="flex items-center space-x-3 pb-4 border-b border-[#21262d]">
-          <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
-            <Send className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-white">Cảnh Báo Biến Động Giá Qua Telegram Bot</h2>
-            <p className="text-xs text-slate-400">
-              Nhận thông báo tự động 24/7 trực tiếp vào tài khoản Telegram cá nhân
-            </p>
-          </div>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+        <DialogHeader className="border-b pb-4">
+          <DialogTitle className="flex items-center gap-2"><Send className="size-5 text-primary" />Cảnh báo giá qua Telegram</DialogTitle>
+          <DialogDescription>Thiết lập cảnh báo giá và nhận thông báo tự động qua bot Telegram.</DialogDescription>
+        </DialogHeader>
 
         {/* Telegram Bot Credentials */}
-        <div className="mt-5 p-4 bg-[#0d1117] rounded-xl border border-[#21262d] text-xs">
-          <h3 className="font-bold text-slate-200 mb-2 flex items-center justify-between">
-            <span>1. Kết nối Telegram Bot của bạn</span>
-            <span className="text-[10px] text-sky-400 font-normal">
-              Tạo bot miễn phí qua @BotFather
-            </span>
-          </h3>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-slate-400 mb-1">Telegram Bot Token</label>
-              <input
-                type="password"
-                placeholder="VD: 7218392819:AAH..."
-                value={botToken}
-                onChange={(e) => setBotToken(e.target.value)}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-sky-500"
-              />
+        <Card className="mt-5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Kết nối Telegram</CardTitle>
+            <CardDescription>Bot token được quản lý an toàn trên server; nhập Chat ID nhận thông báo.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="telegram-chat-id">Telegram Chat ID</Label>
+              <Input id="telegram-chat-id" inputMode="numeric" placeholder="VD: 984512340" value={chatId} onChange={(e) => setChatId(e.target.value)} />
             </div>
-            <div>
-              <label className="block text-slate-400 mb-1">Telegram Chat ID</label>
-              <input
-                type="text"
-                placeholder="VD: 984512340 (lấy từ @userinfobot)"
-                value={chatId}
-                onChange={(e) => setChatId(e.target.value)}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-3 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-sky-500"
-              />
-            </div>
-          </div>
+            <p className="text-xs text-muted-foreground">Lấy Chat ID bằng bot @userinfobot. Máy chủ cần cấu hình TELEGRAM_BOT_TOKEN.</p>
 
           {testResult && (
-            <div
-              className={`mt-3 p-2.5 rounded-lg text-xs flex items-center space-x-2 ${
-                testResult.success
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-              }`}
-            >
+            <Alert variant={testResult.success ? 'default' : 'destructive'}>
               {testResult.success ? (
-                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <CheckCircle2 />
               ) : (
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <AlertCircle />
               )}
-              <span>{testResult.msg}</span>
-            </div>
+              <AlertDescription>{testResult.msg}</AlertDescription>
+            </Alert>
           )}
 
-          <div className="flex items-center justify-end space-x-2 mt-3">
-            <button
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
               onClick={handleSaveConfig}
               disabled={loading}
-              className="px-3 py-1.5 rounded-lg bg-[#21262d] hover:bg-[#30363d] text-slate-200 text-xs font-medium transition-colors"
             >
-              Lưu cấu hình
-            </button>
-            <button
+              {loading ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}Lưu Chat ID
+            </Button>
+            <Button
+              type="button"
               onClick={handleTestPing}
               disabled={testingMsg}
-              className="px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-xs flex items-center space-x-1.5 shadow-md transition-colors"
             >
-              {testingMsg ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              <span>Gửi tin nhắn test</span>
-            </button>
+              {testingMsg ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}Gửi tin nhắn thử
+            </Button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Create Price Alert Form */}
-        <div className="mt-5 text-xs">
-          <h3 className="font-bold text-white mb-2">2. Thiết lập điều kiện cảnh báo mới</h3>
+        <div className="mt-5">
+          <h3 className="mb-2 font-semibold">Thiết lập điều kiện cảnh báo</h3>
           <form
             onSubmit={handleCreateAlert}
-            className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 bg-[#0d1117] p-3 rounded-xl border border-[#21262d] items-end"
+            className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
           >
-            <div>
-              <label className="block text-slate-400 mb-1">Đồng tiền</label>
-              <select
-                value={newCoinId}
-                onChange={(e) => {
-                  setNewCoinId(e.target.value);
-                  const p = DEFAULT_PRICES[e.target.value]?.price || 100;
-                  setNewTarget(String(p));
-                }}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-sky-500"
-              >
-                {Object.entries(DEFAULT_PRICES).map(([id, c]) => (
-                  <option key={id} value={id}>
-                    {c.symbol} - {c.name}
-                  </option>
-                ))}
-              </select>
+            <div className="grid gap-2">
+              <Label htmlFor="alert-asset-source">Tài sản cần theo dõi</Label>
+              <Select value={newWalletAssetId} onValueChange={setNewWalletAssetId}>
+                <SelectTrigger id="alert-asset-source" aria-label="Tài sản cần theo dõi">
+                  <SelectValue placeholder="Chọn tài sản" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ticker">Ticker bất kỳ</SelectItem>
+                  {walletAssets.map((asset) => (
+                    <SelectItem key={asset.id} value={asset.id}>
+                      {asset.symbol} · {asset.name} · {asset.chain}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
-            <div>
-              <label className="block text-slate-400 mb-1">Điều kiện</label>
-              <select
-                value={newCondition}
-                onChange={(e) => setNewCondition(e.target.value as AlertCondition)}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-white text-xs focus:outline-none focus:border-sky-500"
-              >
-                <option value="ABOVE">Giá vượt lên trên ($)</option>
-                <option value="BELOW">Giá giảm xuống dưới ($)</option>
-                <option value="PCT_UP_24H">Tăng mạnh 24h (% ≥)</option>
-                <option value="PCT_DOWN_24H">Giảm mạnh 24h (% ≤)</option>
-              </select>
+            {newWalletAssetId === 'ticker' ? (
+              <div className="grid gap-2">
+                <Label htmlFor="alert-symbol">Ticker</Label>
+                <Input id="alert-symbol" required minLength={2} maxLength={20} pattern="[A-Za-z0-9]+" value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)} className="font-mono" placeholder="BTC" />
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label>Tài sản</Label>
+                <div className="flex h-9 items-center rounded-md border border-input bg-muted px-3 font-mono text-sm">
+                  {walletAssets.find((asset) => asset.id === newWalletAssetId)?.symbol ?? '—'}
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-2 sm:col-span-2 lg:col-span-2">
+              <span className="text-sm font-medium">Điều kiện</span>
+              <Tabs value={newCondition} onValueChange={handleNewConditionChange}>
+                <TabsList aria-label="Điều kiện cảnh báo" className="grid h-auto w-full grid-cols-2 gap-1">
+                  <TabsTrigger value="ABOVE" className="min-h-9 whitespace-normal px-2 text-xs">Giá vượt trên ($)</TabsTrigger>
+                  <TabsTrigger value="BELOW" className="min-h-9 whitespace-normal px-2 text-xs">Giá dưới ($)</TabsTrigger>
+                  <TabsTrigger value="PCT_UP_24H" className="min-h-9 whitespace-normal px-2 text-xs">Tăng mạnh 24h (% ≥)</TabsTrigger>
+                  <TabsTrigger value="PCT_DOWN_24H" className="min-h-9 whitespace-normal px-2 text-xs">Giảm 24h (% ≤)</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
 
-            <div>
-              <label className="block text-slate-400 mb-1">Mục tiêu</label>
-              <input
+            <div className="grid gap-2">
+              <Label htmlFor="alert-target">{newCondition === 'PCT_UP_24H' || newCondition === 'PCT_DOWN_24H' ? 'Mục tiêu (%)' : 'Mục tiêu (USD)'}</Label>
+              <Input
+                id="alert-target"
                 type="number"
                 step="any"
                 value={newTarget}
                 onChange={(e) => setNewTarget(e.target.value)}
-                className="w-full bg-[#161b22] border border-[#30363d] rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:outline-none focus:border-sky-500"
+                required
+                min="0.00000001"
+                className="font-mono"
               />
             </div>
 
             <div>
-              <button
+              <Button
                 type="submit"
-                className="w-full px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs flex items-center justify-center space-x-1 transition-colors shadow-md"
+                className="w-full lg:col-span-1"
+                disabled={creatingAlert}
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Thêm rule</span>
-              </button>
+                {creatingAlert ? <RefreshCw className="size-4 animate-spin" /> : <Plus className="size-4" />}{creatingAlert ? 'Đang thêm…' : 'Thêm cảnh báo'}
+              </Button>
             </div>
           </form>
+          {newAlertError && <Alert variant="destructive" className="mt-3"><AlertCircle /><AlertDescription>{newAlertError}</AlertDescription></Alert>}
         </div>
 
         {/* Active Alerts List */}
-        <div className="mt-5 text-xs">
-          <h3 className="font-bold text-white mb-2">3. Danh sách cảnh báo đang chạy ({alerts.length})</h3>
+        <div className="mt-5">
+          <h3 className="mb-2 flex items-center gap-2 font-semibold">Danh sách cảnh báo <Badge variant="secondary">{alerts.length}</Badge></h3>
+          {alertLoadError && <Alert variant="destructive" className="mb-3"><AlertCircle /><AlertDescription>{alertLoadError}</AlertDescription></Alert>}
+          {alertActionError && <Alert variant="destructive" className="mb-3"><AlertCircle /><AlertDescription>{alertActionError}</AlertDescription></Alert>}
           <div className="space-y-2 max-h-48 overflow-y-auto">
-            {alerts.length === 0 ? (
-              <p className="text-slate-500 italic py-3 text-center">Chưa có cảnh báo nào được đặt.</p>
-            ) : (
+            {alerts.length === 0 && !alertLoadError ? (
+              <p className="py-3 text-center italic text-muted-foreground">Chưa có cảnh báo nào được đặt.</p>
+            ) : alerts.length > 0 ? (
               alerts.map((alt) => {
                 const isEditing = editingAlertId === alt.id;
                 if (isEditing) {
                   return (
                     <div
                       key={alt.id}
-                      className="p-3 rounded-xl bg-[#161b22] border border-sky-500/50 space-y-2.5 shadow-md"
+                      className="space-y-3 rounded-lg border border-primary/40 bg-card p-4 shadow-sm"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-mono font-bold text-sky-400 text-sm">
+                        <span className="font-mono text-sm font-bold text-primary">
                           Chỉnh sửa: {alt.symbol}
                         </span>
                         <div className="flex items-center space-x-1.5">
-                          <button
+                          <Button size="sm"
                             type="button"
                             onClick={() => handleSaveEdit(alt.id)}
-                            className="px-2.5 py-1 rounded bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] flex items-center space-x-1"
                           >
-                            <Save className="w-3 h-3" />
-                            <span>Lưu</span>
-                          </button>
-                          <button
+                            <Save className="size-3.5" />Lưu
+                          </Button>
+                          <Button variant="outline" size="sm"
                             type="button"
                             onClick={handleCancelEdit}
-                            className="px-2.5 py-1 rounded bg-[#21262d] text-slate-300 text-[11px]"
                           >
                             Hủy
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                        <div>
-                          <label className="block text-slate-400 mb-1">Điều kiện</label>
-                          <select
-                            value={editCondition}
-                            onChange={(e) => setEditCondition(e.target.value as AlertCondition)}
-                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-white text-xs"
-                          >
-                            <option value="ABOVE">Giá vượt lên trên ($)</option>
-                            <option value="BELOW">Giá giảm xuống dưới ($)</option>
-                            <option value="PCT_UP_24H">Tăng 24h (% ≥)</option>
-                            <option value="PCT_DOWN_24H">Giảm 24h (% ≤)</option>
-                          </select>
+                        <div className="grid gap-2 sm:col-span-2">
+                          <span className="text-sm font-medium">Điều kiện</span>
+                          <Tabs value={editCondition} onValueChange={(value) => setEditCondition(value as AlertCondition)}>
+                            <TabsList aria-label="Điều kiện chỉnh sửa" className="grid h-auto w-full grid-cols-2 gap-1">
+                              <TabsTrigger value="ABOVE" className="min-h-9 whitespace-normal px-2 text-xs">Giá vượt trên ($)</TabsTrigger>
+                              <TabsTrigger value="BELOW" className="min-h-9 whitespace-normal px-2 text-xs">Giá dưới ($)</TabsTrigger>
+                              <TabsTrigger value="PCT_UP_24H" className="min-h-9 whitespace-normal px-2 text-xs">Tăng mạnh 24h (% ≥)</TabsTrigger>
+                              <TabsTrigger value="PCT_DOWN_24H" className="min-h-9 whitespace-normal px-2 text-xs">Giảm 24h (% ≤)</TabsTrigger>
+                            </TabsList>
+                          </Tabs>
                         </div>
 
-                        <div>
-                          <label className="block text-slate-400 mb-1">Mục tiêu</label>
-                          <input
+                        <div className="grid gap-2">
+                          <Label htmlFor={`edit-alert-target-${alt.id}`}>Mục tiêu</Label>
+                          <Input
+                            id={`edit-alert-target-${alt.id}`}
                             type="number"
                             step="any"
                             value={editTarget}
                             onChange={(e) => setEditTarget(e.target.value)}
-                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-white font-mono text-xs"
+                            className="font-mono"
                           />
                         </div>
                       </div>
@@ -414,13 +444,13 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                 return (
                   <div
                     key={alt.id}
-                    className="flex items-center justify-between p-3 rounded-xl bg-[#0d1117] border border-[#21262d]"
+                    className="flex items-center justify-between rounded-lg border border-border bg-card p-3"
                   >
                     <div className="flex items-center space-x-3">
-                      <span className="font-mono font-bold text-emerald-400 text-sm">
+                      <span className="font-mono text-sm font-bold text-primary">
                         {alt.symbol}
                       </span>
-                      <span className="text-slate-300">
+                      <span className="text-foreground">
                         {alt.condition === 'ABOVE' && `Vượt ngưỡng $${alt.targetValue}`}
                         {alt.condition === 'BELOW' && `Giảm dưới $${alt.targetValue}`}
                         {alt.condition === 'PCT_UP_24H' && `Tăng 24h ≥ +${alt.targetValue}%`}
@@ -429,39 +459,71 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                     </div>
 
                     <div className="flex items-center space-x-1.5">
-                      <button
+                      <Button variant={alt.isActive ? 'secondary' : 'outline'} size="sm"
                         onClick={() => handleToggleAlert(alt.id)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold transition-colors ${
-                          alt.isActive
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                            : 'bg-slate-800 text-slate-500'
-                        }`}
                         title="Bật/Tắt cảnh báo"
                       >
                         {alt.isActive ? 'ĐANG BẬT' : 'TẠM TẮT'}
-                      </button>
-                      <button
+                      </Button>
+                      <Button variant="ghost" size="icon"
                         onClick={() => handleStartEdit(alt)}
-                        className="p-1 rounded text-slate-400 hover:text-sky-400 hover:bg-[#21262d] transition-colors"
                         title="Chỉnh sửa cảnh báo"
+                        aria-label={`Chỉnh sửa cảnh báo ${alt.symbol}`}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
+                      </Button>
+                      <Button variant="ghost" size="icon"
                         onClick={() => handleDeleteAlert(alt.id)}
-                        className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-[#21262d] transition-colors"
                         title="Xóa cảnh báo"
+                        aria-label={`Xóa cảnh báo ${alt.symbol}`}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 );
-              })
-            )}
+              }) ) : null}
           </div>
         </div>
-      </div>
-    </div>
+
+        <Card className="mt-5 overflow-hidden">
+          <CardHeader className="border-b py-4">
+            <CardTitle className="text-base">Lịch sử gửi gần đây</CardTitle>
+            <CardDescription>Tối đa 25 lần đánh giá cảnh báo gần nhất, gồm cả lần gửi lỗi hoặc bị bỏ qua.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table aria-label="Lịch sử gửi cảnh báo Telegram">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Thời gian</TableHead>
+                  <TableHead>Ticker</TableHead>
+                  <TableHead className="text-right">Giá ghi nhận</TableHead>
+                  <TableHead className="text-right">24h</TableHead>
+                  <TableHead className="text-right">Trạng thái</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deliveries.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="py-6 text-center text-muted-foreground">Chưa có lần gửi nào.</TableCell></TableRow>
+                ) : deliveries.map((delivery) => {
+                  const relatedAlert = alerts.find((item) => item.id === delivery.alertId);
+                  const statusLabels = { pending: 'Đang gửi', sent: 'Đã gửi', failed: 'Gửi lỗi', skipped: 'Bỏ qua' } as const;
+                  const statusVariants = { pending: 'secondary', sent: 'default', failed: 'destructive', skipped: 'outline' } as const;
+                  return (
+                    <TableRow key={delivery.id}>
+                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{new Date(delivery.createdAt).toLocaleString('vi-VN')}</TableCell>
+                      <TableCell className="font-mono font-medium">{relatedAlert?.symbol ?? '—'}</TableCell>
+                      <TableCell className="text-right font-mono">{delivery.observedPriceUsd === null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(delivery.observedPriceUsd)}</TableCell>
+                      <TableCell className="text-right font-mono">{delivery.observedChange24h === null ? '—' : `${delivery.observedChange24h.toFixed(2)}%`}</TableCell>
+                      <TableCell className="text-right"><Badge variant={statusVariants[delivery.status]}>{statusLabels[delivery.status]}</Badge></TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </DialogContent>
+    </Dialog>
   );
 };

@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
               name: direct.name || `${query.toUpperCase()} Token`,
               priceUsd: direct.priceUsd,
               change24h: direct.change24h,
-              volume24h: 1000000,
             },
           ],
         });
