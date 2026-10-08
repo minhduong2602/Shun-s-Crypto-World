@@ -65,8 +65,75 @@ function generateSparklineFrom24h(currentPrice: number, change24h: number, point
   return result;
 }
 
+interface ExchangeProvider {
+  name: string;
+  baseUrl: string;
+}
+
+// Exchange providers list. MEXC has Binance v3 API parity and isn't blocked by corporate firewalls.
+const EXCHANGE_PROVIDERS: ExchangeProvider[] = [
+  { name: 'MEXC', baseUrl: 'https://api.mexc.com' },
+  { name: 'Binance', baseUrl: 'https://api.binance.com' },
+];
+
+let preferredProviderIndex = 0;
+let lastProviderFailureTime = 0;
+const RECHECK_PRIMARY_INTERVAL_MS = 10 * 60 * 1000;
+
+async function fetchFromExchange(path: string, options?: RequestInit): Promise<any> {
+  const now = Date.now();
+  const startIndex = now - lastProviderFailureTime > RECHECK_PRIMARY_INTERVAL_MS
+    ? 0
+    : preferredProviderIndex;
+
+  const orderedIndices = [
+    startIndex,
+    ...EXCHANGE_PROVIDERS.map((_, i) => i).filter((i) => i !== startIndex),
+  ];
+
+  let lastError: any = null;
+
+  for (const idx of orderedIndices) {
+    const provider = EXCHANGE_PROVIDERS[idx];
+    const url = `${provider.baseUrl}${path}`;
+
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'ShunCryptoPortfolio/1.0',
+          ...(options?.headers || {}),
+        },
+      });
+
+      if (res.ok) {
+        if (preferredProviderIndex !== idx) {
+          console.info(`[MarketService] Nguồn dữ liệu thị trường đang dùng: ${provider.name}`);
+          preferredProviderIndex = idx;
+        }
+        return await res.json();
+      }
+
+      lastError = new Error(`${provider.name} trả về HTTP ${res.status}`);
+      if (idx === preferredProviderIndex) {
+        preferredProviderIndex = (preferredProviderIndex + 1) % EXCHANGE_PROVIDERS.length;
+        lastProviderFailureTime = now;
+      }
+    } catch (err: any) {
+      lastError = err;
+      if (idx === preferredProviderIndex) {
+        preferredProviderIndex = (preferredProviderIndex + 1) % EXCHANGE_PROVIDERS.length;
+        lastProviderFailureTime = now;
+      }
+    }
+  }
+
+  throw lastError || new Error('Tất cả nguồn dữ liệu sàn giao dịch đều không phản hồi');
+}
+
 /**
- * Fetches real-time 24hr tickers directly from Binance Public REST API
+ * Fetches real-time 24hr tickers directly from Exchange Public REST API
  */
 export async function getLiveTickers(): Promise<MarketTicker[]> {
   const now = Date.now();
@@ -75,27 +142,18 @@ export async function getLiveTickers(): Promise<MarketTicker[]> {
   }
 
   try {
-    const res = await fetch('https://api.binance.com/api/v3/ticker/24hr', {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'ShunCryptoPortfolio/1.0',
-      },
-      next: { revalidate: 5 },
-    });
-
-    if (!res.ok) {
-      throw new Error(`Binance API error: ${res.statusText}`);
-    }
-
     const data: Array<{
       symbol: string;
       lastPrice: string;
+      prevClosePrice?: string;
       priceChangePercent: string;
       highPrice: string;
       lowPrice: string;
       volume: string;
       quoteVolume: string;
-    }> = await res.json();
+    }> = await fetchFromExchange('/api/v3/ticker/24hr', {
+      next: { revalidate: 5 },
+    });
 
     // Filter only USDT pairs, excluding leveraged/fan tokens if unwanted
     const usdtPairs = data.filter(
@@ -115,7 +173,16 @@ export async function getLiveTickers(): Promise<MarketTicker[]> {
       const price = parseFloat(item.lastPrice);
       if (isNaN(price) || price <= 0) continue;
 
-      const change24h = parseFloat(item.priceChangePercent);
+      let change24h: number;
+      if (item.prevClosePrice && parseFloat(item.prevClosePrice) > 0) {
+        const prevClose = parseFloat(item.prevClosePrice);
+        change24h = ((price - prevClose) / prevClose) * 100;
+      } else {
+        let rawChange = parseFloat(item.priceChangePercent);
+        if (Math.abs(rawChange) < 0.6 && rawChange !== 0) rawChange = rawChange * 100;
+        change24h = rawChange;
+      }
+
       const volumeUsd = parseFloat(item.quoteVolume);
       const meta = COIN_METADATA[baseSymbol];
 
@@ -159,7 +226,7 @@ export async function getLiveTickers(): Promise<MarketTicker[]> {
     lastTickerFetchTime = now;
     return tickers;
   } catch (error) {
-    console.error('Lỗi khi fetch live tickers từ Binance API:', error);
+    console.error('Lỗi khi fetch live tickers từ sàn giao dịch:', error);
     if (cachedTickers.length > 0) {
       return cachedTickers;
     }
@@ -214,21 +281,31 @@ export async function getLivePriceForSymbol(symbol: string): Promise<{
   const cleanSymbol = symbol.trim().toUpperCase();
 
   try {
-    const res = await fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${cleanSymbol}USDT`, {
-      next: { revalidate: 3 },
-    });
-    if (res.ok) {
-      const data = await res.json();
+    const data = await fetchFromExchange(
+      `/api/v3/ticker/24hr?symbol=${cleanSymbol}USDT`,
+      { next: { revalidate: 3 } }
+    );
+    if (data && data.lastPrice) {
+      const price = parseFloat(data.lastPrice);
+      let change24h: number;
+      if (data.prevClosePrice && parseFloat(data.prevClosePrice) > 0) {
+        const prevClose = parseFloat(data.prevClosePrice);
+        change24h = ((price - prevClose) / prevClose) * 100;
+      } else {
+        let raw = parseFloat(data.priceChangePercent);
+        if (Math.abs(raw) < 0.6 && raw !== 0) raw = raw * 100;
+        change24h = raw;
+      }
       return {
-        priceUsd: parseFloat(data.lastPrice),
-        change24h: parseFloat(data.priceChangePercent),
+        priceUsd: price,
+        change24h: Number(change24h.toFixed(2)),
         high24h: parseFloat(data.highPrice),
         low24h: parseFloat(data.lowPrice),
         name: COIN_METADATA[cleanSymbol]?.name || `${cleanSymbol} Token`,
       };
     }
   } catch (e) {
-    console.warn(`Không thể lấy giá trực tiếp từ Binance cho ${cleanSymbol}:`, e);
+    console.warn(`Không thể lấy giá trực tiếp từ sàn cho ${cleanSymbol}:`, e);
   }
 
   // Fallback to cached ticker
@@ -247,7 +324,7 @@ export async function getLivePriceForSymbol(symbol: string): Promise<{
 }
 
 /**
- * Fetches real live OHLCV candlestick data directly from Binance Klines API
+ * Fetches real live OHLCV candlestick data directly from Exchange Klines API
  */
 export async function getLiveCandlesticks(
   symbol: string,
@@ -256,7 +333,7 @@ export async function getLiveCandlesticks(
   const cleanSymbol = symbol.trim().toUpperCase();
   const pair = `${cleanSymbol}USDT`;
 
-  let interval = '1h';
+  let interval = '1m';
   let limit = 48;
 
   switch (timeframe) {
@@ -283,13 +360,12 @@ export async function getLiveCandlesticks(
   }
 
   try {
-    const res = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
+    const klines = await fetchFromExchange(
+      `/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
       { next: { revalidate: 5 } }
     );
 
-    if (res.ok) {
-      const klines: any[] = await res.json();
+    if (Array.isArray(klines)) {
       const points: OHLCVPoint[] = klines.map((k) => ({
         time: Math.floor(k[0] / 1000), // open time in seconds
         open: parseFloat(k[1]),
@@ -301,7 +377,7 @@ export async function getLiveCandlesticks(
       return points;
     }
   } catch (e) {
-    console.error(`Lỗi fetch Binance Klines cho ${pair}:`, e);
+    console.error(`Lỗi fetch Klines cho ${pair}:`, e);
   }
 
   return [];
