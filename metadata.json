@@ -1,0 +1,6 @@
+{
+  "name": "CryptoPulse Portfolio",
+  "description": "Personal crypto portfolio tracker with real-time CoinMarketCap-style analytics, view-only multi-chain wallet tracking, Gemini AI market intelligence, and Telegram price alert triggers.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

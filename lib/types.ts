@@ -1,0 +1,144 @@
+export type ChainType = 'ETH' | 'BSC' | 'POLYGON' | 'ARBITRUM' | 'SOL' | 'BTC';
+
+export interface UserSettings {
+  id: string;
+  hasPassword: boolean;
+  passwordHash?: string;
+  twoFactorSecret?: string;
+  twoFactorEnabled: boolean;
+  telegramChatId?: string;
+  telegramBotToken?: string;
+  telegramAlertsEnabled: boolean;
+  baseCurrency: 'USD' | 'VND' | 'EUR';
+  updatedAt: string;
+}
+
+export interface Wallet {
+  id: string;
+  chain: ChainType;
+  address: string;
+  label: string;
+  isActive: boolean;
+  lastSyncedAt?: string;
+  balanceUsd: number;
+  nativeBalance: number;
+  nativeSymbol: string;
+  tokensCount: number;
+  createdAt: string;
+}
+
+export type TransactionType = 'BUY' | 'SELL' | 'TRANSFER_IN' | 'TRANSFER_OUT';
+
+export interface Transaction {
+  id: string;
+  coinId: string;
+  symbol: string;
+  name: string;
+  type: TransactionType;
+  amount: number;
+  pricePerCoin: number;
+  totalAmount: number;
+  fee: number;
+  walletId?: string;
+  txHash?: string;
+  executedAt: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface Holding {
+  id: string;
+  coinId: string;
+  symbol: string;
+  name: string;
+  amount: number;
+  avgBuyPrice: number;
+  totalInvested: number;
+  currentPrice: number;
+  currentValue: number;
+  priceChange24h: number;
+  unrealizedPnL: number;
+  unrealizedPnLPercentage: number;
+  allocationPercentage: number;
+  sparkline7d: number[];
+  notes?: string;
+  updatedAt: string;
+}
+
+export interface PortfolioSummary {
+  totalValueUsd: number;
+  totalInvestedUsd: number;
+  totalProfitLossUsd: number;
+  totalProfitLossPercentage: number;
+  change24hUsd: number;
+  change24hPercentage: number;
+  holdingsCount: number;
+  bestPerformer?: {
+    symbol: string;
+    gainPercentage: number;
+  };
+  worstPerformer?: {
+    symbol: string;
+    gainPercentage: number;
+  };
+}
+
+export type AlertCondition = 'ABOVE' | 'BELOW' | 'PCT_UP_24H' | 'PCT_DOWN_24H';
+
+export interface PriceAlert {
+  id: string;
+  coinId: string;
+  symbol: string;
+  condition: AlertCondition;
+  targetValue: number;
+  currentValueAtCreation: number;
+  isActive: boolean;
+  isRecurring: boolean;
+  triggeredAt?: string;
+  lastNotificationStatus?: 'SUCCESS' | 'FAILED' | 'PENDING';
+  createdAt: string;
+}
+
+export interface MarketTicker {
+  id: string;
+  symbol: string;
+  name: string;
+  rank: number;
+  priceUsd: number;
+  priceChange1h: number;
+  priceChange24h: number;
+  priceChange7d: number;
+  marketCapUsd: number;
+  volume24hUsd: number;
+  circulatingSupply: number;
+  sparkline7d: number[];
+  high24h: number;
+  low24h: number;
+}
+
+export interface OHLCVPoint {
+  time: number; // Unix timestamp in seconds
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export interface AiRecommendation {
+  id: string;
+  summary: string;
+  riskScore: number; // 1-100
+  marketSentiment: 'EXTREME_GREED' | 'GREED' | 'NEUTRAL' | 'FEAR' | 'EXTREME_FEAR';
+  rebalanceSuggestions: {
+    symbol: string;
+    action: 'ACCUMULATE' | 'TAKE_PROFIT' | 'HOLD' | 'REDUCE';
+    targetAllocationPct: number;
+    currentAllocationPct: number;
+    reasoning: string;
+  }[];
+  portfolioStrengths: string[];
+  riskWarnings: string[];
+  macroInsight: string;
+  createdAt: string;
+}
