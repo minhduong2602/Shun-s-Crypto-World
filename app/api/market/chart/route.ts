@@ -7,10 +7,11 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const coinId = (searchParams.get('coinId') || 'BTC').toUpperCase();
-    const timeframe = (searchParams.get('timeframe') || '1D') as '1H' | '4H' | '1D' | '1W' | '1Y';
+    const timeframe = (searchParams.get('timeframe') || '15m').toLowerCase();
 
-    // Fetch real live candlesticks from Binance / MEXC
+    // Fetch real live candlesticks from Binance / MEXC / OKX
     let data: OHLCVPoint[] = [];
+    let dataSource = 'Binance / MEXC Live';
     try {
       data = await getLiveCandlesticks(coinId, timeframe);
     } catch {
@@ -28,42 +29,49 @@ export async function GET(req: NextRequest) {
       // Keep default
     }
 
-    // Fallback generation only if Binance pair does not exist
+    // Fallback generation only if unlisted on CEX
     if (!data || data.length === 0) {
-      let pointsCount = 48;
-      let intervalSeconds = 1800;
+      dataSource = 'Synthesized Live Model';
+      let pointsCount = 120;
+      let intervalSeconds = 900; // 15m
 
-      if (timeframe === '1H') {
-        pointsCount = 60;
+      if (timeframe === '1m') {
+        pointsCount = 120;
         intervalSeconds = 60;
-      } else if (timeframe === '4H') {
-        pointsCount = 48;
+      } else if (timeframe === '5m') {
+        pointsCount = 120;
         intervalSeconds = 300;
-      } else if (timeframe === '1D') {
-        pointsCount = 48;
-        intervalSeconds = 1800;
-      } else if (timeframe === '1W') {
-        pointsCount = 42;
+      } else if (timeframe === '15m') {
+        pointsCount = 120;
+        intervalSeconds = 900;
+      } else if (timeframe === '1h') {
+        pointsCount = 120;
+        intervalSeconds = 3600;
+      } else if (timeframe === '4h') {
+        pointsCount = 100;
         intervalSeconds = 14400;
-      } else if (timeframe === '1Y') {
-        pointsCount = 52;
+      } else if (timeframe === '1d') {
+        pointsCount = 100;
+        intervalSeconds = 86400;
+      } else if (timeframe === '1w') {
+        pointsCount = 80;
         intervalSeconds = 86400 * 7;
       }
 
       const now = Math.floor(Date.now() / 1000);
       const startTime = now - pointsCount * intervalSeconds;
-      let prevClose = currentPrice * 0.98;
+      let prevClose = currentPrice * 0.94;
 
       data = [];
       for (let i = 0; i < pointsCount; i++) {
         const time = startTime + i * intervalSeconds;
-        const volatility = currentPrice * 0.012;
-        const change = (Math.random() - 0.48) * volatility;
+        const volatility = currentPrice * 0.015;
+        const change = (Math.sin(i * 0.25) * 0.5 + (Math.random() - 0.48)) * volatility;
         const open = Number(prevClose.toFixed(prevClose < 1 ? 6 : 2));
-        const close = Number(Math.max(currentPrice * 0.4, open + change).toFixed(open < 1 ? 6 : 2));
-        const high = Number((Math.max(open, close) + Math.random() * volatility * 0.5).toFixed(open < 1 ? 6 : 2));
-        const low = Number((Math.min(open, close) - Math.random() * volatility * 0.5).toFixed(open < 1 ? 6 : 2));
-        const volume = Number((Math.random() * 5000000 + 1000000).toFixed(0));
+        const close = Number(Math.max(currentPrice * 0.3, open + change).toFixed(open < 1 ? 6 : 2));
+        const high = Number((Math.max(open, close) + Math.random() * volatility * 0.6).toFixed(open < 1 ? 6 : 2));
+        const low = Number((Math.min(open, close) - Math.random() * volatility * 0.6).toFixed(open < 1 ? 6 : 2));
+        const volume = Number((Math.random() * 8000000 + 2000000).toFixed(0));
 
         data.push({
           time,
@@ -82,6 +90,7 @@ export async function GET(req: NextRequest) {
       symbol: coinId,
       timeframe,
       currentPrice,
+      dataSource,
       isLive: true,
       data,
     });

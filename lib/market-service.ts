@@ -329,60 +329,112 @@ export async function getLivePriceForSymbol(symbol: string): Promise<{
 }
 
 /**
- * Fetches real live OHLCV candlestick data directly from Exchange Klines API
+ * Fetches real live OHLCV candlestick data directly from Exchange Klines API (Binance, MEXC, OKX)
  */
 export async function getLiveCandlesticks(
   symbol: string,
-  timeframe: '1H' | '4H' | '1D' | '1W' | '1Y'
+  timeframe: string
 ): Promise<OHLCVPoint[]> {
   const cleanSymbol = symbol.trim().toUpperCase();
   const pair = `${cleanSymbol}USDT`;
 
-  let interval = '1m';
-  let limit = 48;
+  let interval = '15m';
+  let limit = 200;
+  let okxBar = '15m';
 
-  switch (timeframe) {
-    case '1H':
-      interval = '1m';
-      limit = 60;
-      break;
-    case '4H':
-      interval = '5m';
-      limit = 48;
-      break;
-    case '1D':
-      interval = '30m';
-      limit = 48;
-      break;
-    case '1W':
-      interval = '4h';
-      limit = 42;
-      break;
-    case '1Y':
-      interval = '1d';
-      limit = 52;
-      break;
+  const tf = timeframe.toLowerCase();
+  if (tf === '1m') {
+    interval = '1m';
+    limit = 200;
+    okxBar = '1m';
+  } else if (tf === '5m') {
+    interval = '5m';
+    limit = 200;
+    okxBar = '5m';
+  } else if (tf === '15m') {
+    interval = '15m';
+    limit = 200;
+    okxBar = '15m';
+  } else if (tf === '1h' || tf === '60m') {
+    interval = '1h';
+    limit = 200;
+    okxBar = '1H';
+  } else if (tf === '4h') {
+    interval = '4h';
+    limit = 200;
+    okxBar = '4H';
+  } else if (tf === '1d' || tf === 'd') {
+    interval = '1d';
+    limit = 200;
+    okxBar = '1D';
+  } else if (tf === '1w' || tf === 'w') {
+    interval = '1w';
+    limit = 150;
+    okxBar = '1W';
   }
 
+  // 1. Try Primary Exchange Providers (Binance & MEXC)
   try {
     const klines = await fetchFromExchange(
       `/api/v3/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
-      { next: { revalidate: 5 } }
+      { next: { revalidate: 3 } }
     );
 
-    if (Array.isArray(klines)) {
-      const points: OHLCVPoint[] = klines.map((k) => ({
-        time: Math.floor(k[0] / 1000), // open time in seconds
-        open: parseFloat(k[1]),
-        high: parseFloat(k[2]),
-        low: parseFloat(k[3]),
-        close: parseFloat(k[4]),
-        volume: parseFloat(k[5]),
-      }));
-      return points;
+    if (Array.isArray(klines) && klines.length > 0) {
+      const points: OHLCVPoint[] = [];
+      let lastTime = 0;
+      for (const k of klines) {
+        const timeSec = Math.floor(k[0] / 1000);
+        if (timeSec > lastTime) {
+          points.push({
+            time: timeSec,
+            open: parseFloat(k[1]),
+            high: parseFloat(k[2]),
+            low: parseFloat(k[3]),
+            close: parseFloat(k[4]),
+            volume: parseFloat(k[5]),
+          });
+          lastTime = timeSec;
+        }
+      }
+      if (points.length >= 10) return points;
     }
   } catch (e) {
-    console.error(`Lỗi fetch Klines cho ${pair}:`, e);
+    console.warn(`Primary exchange Klines failed for ${pair}:`, e);
+  }
+
+  // 2. Fallback to OKX Public REST API
+  try {
+    const okxRes = await fetch(
+      `https://www.okx.com/api/v5/market/candles?instId=${cleanSymbol}-USDT&bar=${okxBar}&limit=${limit}`,
+      { next: { revalidate: 3 } }
+    );
+    if (okxRes.ok) {
+      const okxJson = await okxRes.json();
+      if (okxJson.code === '0' && Array.isArray(okxJson.data) && okxJson.data.length > 0) {
+        // OKX returns newest first, reverse to ascending
+        const sorted = [...okxJson.data].reverse();
+        const points: OHLCVPoint[] = [];
+        let lastTime = 0;
+        for (const k of sorted) {
+          const timeSec = Math.floor(parseInt(k[0], 10) / 1000);
+          if (timeSec > lastTime) {
+            points.push({
+              time: timeSec,
+              open: parseFloat(k[1]),
+              high: parseFloat(k[2]),
+              low: parseFloat(k[3]),
+              close: parseFloat(k[4]),
+              volume: parseFloat(k[5]),
+            });
+            lastTime = timeSec;
+          }
+        }
+        if (points.length >= 10) return points;
+      }
+    }
+  } catch (e) {
+    console.warn(`OKX fallback failed for ${cleanSymbol}:`, e);
   }
 
   return [];
