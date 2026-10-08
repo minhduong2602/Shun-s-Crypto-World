@@ -1,12 +1,14 @@
 import {
   UserSettings,
   Wallet,
+  WalletToken,
   Transaction,
   Holding,
   PortfolioSummary,
   PriceAlert,
   MarketTicker,
   AiRecommendation,
+  ChainType,
 } from '../types';
 
 // In-memory persistent database singleton for Next.js runtime
@@ -151,9 +153,80 @@ function initializeDatabase() {
       isActive: true,
       lastSyncedAt: new Date().toISOString(),
       balanceUsd: 15420.5,
-      nativeBalance: 4.5,
+      nativeBalance: 3.5,
       nativeSymbol: 'ETH',
-      tokensCount: 6,
+      tokensCount: 5,
+      tokens: [
+        {
+          id: 'eth-native',
+          symbol: 'ETH',
+          name: 'Ethereum',
+          balance: 3.5,
+          balanceUsd: 11970.0,
+          priceUsd: 3420.0,
+          change24h: 3.2,
+          isNative: true,
+          decimals: 18,
+          chain: 'ETH',
+          allocationPercentage: 77.6,
+        },
+        {
+          id: 'eth-usdc',
+          symbol: 'USDC',
+          name: 'USD Coin',
+          balance: 2150.0,
+          balanceUsd: 2150.0,
+          priceUsd: 1.0,
+          change24h: 0.01,
+          contractAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+          isNative: false,
+          decimals: 6,
+          chain: 'ETH',
+          allocationPercentage: 13.9,
+        },
+        {
+          id: 'eth-link',
+          symbol: 'LINK',
+          name: 'Chainlink',
+          balance: 55.0,
+          balanceUsd: 825.0,
+          priceUsd: 15.0,
+          change24h: 4.8,
+          contractAddress: '0x514910771AF9Ca656af840dff83E8264EcF986CA',
+          isNative: false,
+          decimals: 18,
+          chain: 'ETH',
+          allocationPercentage: 5.4,
+        },
+        {
+          id: 'eth-uni',
+          symbol: 'UNI',
+          name: 'Uniswap',
+          balance: 35.0,
+          balanceUsd: 315.0,
+          priceUsd: 9.0,
+          change24h: -1.2,
+          contractAddress: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+          isNative: false,
+          decimals: 18,
+          chain: 'ETH',
+          allocationPercentage: 2.0,
+        },
+        {
+          id: 'eth-pepe',
+          symbol: 'PEPE',
+          name: 'Pepe',
+          balance: 16500000,
+          balanceUsd: 160.5,
+          priceUsd: 0.0000097,
+          change24h: 8.5,
+          contractAddress: '0x6982508145454Ce325dDbE47a25d4ec3d2311933',
+          isNative: false,
+          decimals: 18,
+          chain: 'ETH',
+          allocationPercentage: 1.1,
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
     {
@@ -164,9 +237,66 @@ function initializeDatabase() {
       isActive: true,
       lastSyncedAt: new Date().toISOString(),
       balanceUsd: 7368.0,
-      nativeBalance: 40.0,
+      nativeBalance: 32.0,
       nativeSymbol: 'SOL',
       tokensCount: 4,
+      tokens: [
+        {
+          id: 'sol-native',
+          symbol: 'SOL',
+          name: 'Solana',
+          balance: 32.0,
+          balanceUsd: 5920.0,
+          priceUsd: 185.0,
+          change24h: 4.5,
+          isNative: true,
+          decimals: 9,
+          chain: 'SOL',
+          allocationPercentage: 80.3,
+        },
+        {
+          id: 'sol-jup',
+          symbol: 'JUP',
+          name: 'Jupiter',
+          balance: 850.0,
+          balanceUsd: 807.5,
+          priceUsd: 0.95,
+          change24h: 6.2,
+          contractAddress: 'JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN',
+          isNative: false,
+          decimals: 6,
+          chain: 'SOL',
+          allocationPercentage: 11.0,
+        },
+        {
+          id: 'sol-ray',
+          symbol: 'RAY',
+          name: 'Raydium',
+          balance: 240.0,
+          balanceUsd: 480.0,
+          priceUsd: 2.0,
+          change24h: 3.1,
+          contractAddress: '4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R',
+          isNative: false,
+          decimals: 6,
+          chain: 'SOL',
+          allocationPercentage: 6.5,
+        },
+        {
+          id: 'sol-usdc',
+          symbol: 'USDC',
+          name: 'USD Coin SPL',
+          balance: 160.5,
+          balanceUsd: 160.5,
+          priceUsd: 1.0,
+          change24h: 0.0,
+          contractAddress: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+          isNative: false,
+          decimals: 6,
+          chain: 'SOL',
+          allocationPercentage: 2.2,
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
     {
@@ -180,6 +310,21 @@ function initializeDatabase() {
       nativeBalance: 0.85,
       nativeSymbol: 'BTC',
       tokensCount: 1,
+      tokens: [
+        {
+          id: 'btc-native',
+          symbol: 'BTC',
+          name: 'Bitcoin Native',
+          balance: 0.85,
+          balanceUsd: 77732.5,
+          priceUsd: 91450.0,
+          change24h: 1.8,
+          isNative: true,
+          decimals: 8,
+          chain: 'BTC',
+          allocationPercentage: 100.0,
+        },
+      ],
       createdAt: new Date().toISOString(),
     },
   ];
@@ -284,7 +429,61 @@ export const db = {
     return [...state.wallets];
   },
 
-  addWallet(wallet: Omit<Wallet, 'id' | 'createdAt' | 'balanceUsd' | 'nativeBalance' | 'nativeSymbol' | 'tokensCount'>): Wallet {
+  getWalletById(id: string): Wallet | undefined {
+    const state = initializeDatabase();
+    return state.wallets.find((w) => w.id === id);
+  },
+
+  updateWallet(id: string, updates: Partial<Wallet>): Wallet | null {
+    const state = initializeDatabase();
+    const index = state.wallets.findIndex((w) => w.id === id);
+    if (index === -1) return null;
+    state.wallets[index] = {
+      ...state.wallets[index],
+      ...updates,
+      lastSyncedAt: updates.lastSyncedAt || new Date().toISOString(),
+    };
+    return { ...state.wallets[index] };
+  },
+
+  removeWalletToken(walletId: string, tokenIdOrContract: string): boolean {
+    const state = initializeDatabase();
+    const wallet = state.wallets.find((w) => w.id === walletId);
+    if (!wallet || !wallet.tokens) return false;
+
+    const clean = (tokenIdOrContract || '').toLowerCase().trim();
+    const prevLen = wallet.tokens.length;
+    wallet.tokens = wallet.tokens.filter(
+      (t) =>
+        t.id.toLowerCase() !== clean &&
+        (t.contractAddress ? t.contractAddress.toLowerCase() !== clean : true) &&
+        t.symbol.toLowerCase() !== clean
+    );
+
+    if (wallet.tokens.length < prevLen) {
+      const newTotal = wallet.tokens.reduce((acc, t) => acc + t.balanceUsd, 0);
+      wallet.balanceUsd = Number(newTotal.toFixed(2));
+      wallet.tokensCount = wallet.tokens.length;
+      for (const t of wallet.tokens) {
+        t.allocationPercentage =
+          newTotal > 0 ? Number(((t.balanceUsd / newTotal) * 100).toFixed(1)) : 0;
+      }
+      return true;
+    }
+    return false;
+  },
+
+  addWallet(wallet: {
+    chain: ChainType;
+    address: string;
+    label: string;
+    isActive?: boolean;
+    nativeBalance?: number;
+    nativeSymbol?: string;
+    balanceUsd?: number;
+    tokensCount?: number;
+    tokens?: WalletToken[];
+  }): Wallet {
     const state = initializeDatabase();
     const nativeSymbolMap: Record<string, string> = {
       ETH: 'ETH',
@@ -295,17 +494,22 @@ export const db = {
       BTC: 'BTC',
     };
 
-    const nativeSymbol = nativeSymbolMap[wallet.chain] || 'ETH';
-    const mockBalance = Number((Math.random() * 2 + 0.1).toFixed(4));
-    const price = DEFAULT_PRICES[wallet.chain.toLowerCase()]?.price || 2500;
+    const nativeSymbol = wallet.nativeSymbol || nativeSymbolMap[wallet.chain] || 'ETH';
+    const nativeBalance = wallet.nativeBalance !== undefined ? wallet.nativeBalance : 0;
+    const balanceUsd = wallet.balanceUsd !== undefined ? wallet.balanceUsd : 0;
 
     const newWallet: Wallet = {
       id: 'w-' + Date.now().toString(36),
-      ...wallet,
-      balanceUsd: Number((mockBalance * price).toFixed(2)),
-      nativeBalance: mockBalance,
+      chain: wallet.chain,
+      address: wallet.address,
+      label: wallet.label,
+      isActive: wallet.isActive ?? true,
+      balanceUsd,
+      nativeBalance,
       nativeSymbol,
-      tokensCount: 3,
+      tokensCount: wallet.tokens?.length || wallet.tokensCount || (nativeBalance > 0 ? 1 : 0),
+      tokens: wallet.tokens || [],
+      lastSyncedAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
 
@@ -315,9 +519,14 @@ export const db = {
 
   removeWallet(id: string): boolean {
     const state = initializeDatabase();
-    const prevLen = state.wallets.length;
-    state.wallets = state.wallets.filter((w) => w.id !== id);
-    return state.wallets.length < prevLen;
+    const initialLen = state.wallets.length;
+    const clean = (id || '').trim().toLowerCase();
+    state.wallets = state.wallets.filter((w) => {
+      const matchId = (w.id || '').trim().toLowerCase() === clean;
+      const matchAddr = (w.address || '').trim().toLowerCase() === clean;
+      return !matchId && !matchAddr;
+    });
+    return state.wallets.length < initialLen;
   },
 
   getTransactions(): Transaction[] {
@@ -343,6 +552,51 @@ export const db = {
     const prev = state.transactions.length;
     state.transactions = state.transactions.filter((t) => t.id !== id);
     return state.transactions.length < prev;
+  },
+
+  updateTransaction(id: string, updates: Partial<Transaction>): Transaction | null {
+    const state = initializeDatabase();
+    const idx = state.transactions.findIndex((t) => t.id === id);
+    if (idx === -1) return null;
+
+    const current = state.transactions[idx];
+    const amount = updates.amount !== undefined ? updates.amount : current.amount;
+    const pricePerCoin = updates.pricePerCoin !== undefined ? updates.pricePerCoin : current.pricePerCoin;
+    const fee = updates.fee !== undefined ? updates.fee : current.fee;
+    const totalAmount = Number((amount * pricePerCoin + fee).toFixed(2));
+
+    state.transactions[idx] = {
+      ...current,
+      ...updates,
+      amount,
+      pricePerCoin,
+      fee,
+      totalAmount,
+    };
+    return { ...state.transactions[idx] };
+  },
+
+  updateHoldingNotes(coinIdOrSymbol: string, notes: string): boolean {
+    const state = initializeDatabase();
+    const clean = (coinIdOrSymbol || '').trim().toLowerCase();
+    let updated = false;
+    for (const tx of state.transactions) {
+      if (tx.coinId.toLowerCase() === clean || tx.symbol.toLowerCase() === clean) {
+        tx.notes = notes;
+        updated = true;
+      }
+    }
+    return updated;
+  },
+
+  removeHolding(coinIdOrSymbol: string): boolean {
+    const state = initializeDatabase();
+    const clean = (coinIdOrSymbol || '').trim().toLowerCase();
+    const prevLen = state.transactions.length;
+    state.transactions = state.transactions.filter(
+      (tx) => tx.coinId.toLowerCase() !== clean && tx.symbol.toLowerCase() !== clean
+    );
+    return state.transactions.length < prevLen;
   },
 
   async getLiveHoldings(): Promise<Holding[]> {
@@ -657,6 +911,40 @@ export const db = {
     if (!alert) return null;
     alert.isActive = !alert.isActive;
     return { ...alert };
+  },
+
+  updateAlert(id: string, updates: Partial<PriceAlert>): PriceAlert | null {
+    const state = initializeDatabase();
+    const alert = state.alerts.find((a) => a.id === id);
+    if (!alert) return null;
+
+    if (updates.condition) alert.condition = updates.condition;
+    if (updates.targetValue !== undefined) alert.targetValue = updates.targetValue;
+    if (updates.isRecurring !== undefined) alert.isRecurring = updates.isRecurring;
+    if (updates.isActive !== undefined) alert.isActive = updates.isActive;
+
+    return { ...alert };
+  },
+
+  addCustomTicker(coin: { symbol: string; name: string; price: number; change24h?: number; change7d?: number }) {
+    const sym = coin.symbol.toUpperCase();
+    const id = sym.toLowerCase();
+    DEFAULT_PRICES[id] = {
+      price: coin.price || 1.0,
+      change24h: coin.change24h ?? 0,
+      change7d: coin.change7d ?? 0,
+      symbol: sym,
+      name: coin.name || sym,
+    };
+  },
+
+  removeCustomTicker(symbol: string): boolean {
+    const id = symbol.toLowerCase();
+    if (DEFAULT_PRICES[id]) {
+      delete DEFAULT_PRICES[id];
+      return true;
+    }
+    return false;
   },
 
   getMarketTickers(): MarketTicker[] {

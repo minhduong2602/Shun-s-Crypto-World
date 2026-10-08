@@ -13,6 +13,7 @@ import {
   Activity,
   Shield,
   Layers,
+  RefreshCw,
 } from 'lucide-react';
 import { PortfolioSummary } from '@/lib/types';
 
@@ -23,6 +24,7 @@ interface PortfolioHeroProps {
   onOpenWallets: () => void;
   onOpenAi: () => void;
   onOpenAlerts: () => void;
+  onRefresh?: () => void;
 }
 
 export const PortfolioHero: React.FC<PortfolioHeroProps> = ({
@@ -32,6 +34,7 @@ export const PortfolioHero: React.FC<PortfolioHeroProps> = ({
   onOpenWallets,
   onOpenAi,
   onOpenAlerts,
+  onRefresh,
 }) => {
   const isPositivePnL = summary.totalProfitLossUsd >= 0;
   const isPositive24h = summary.change24hUsd >= 0;
@@ -60,6 +63,16 @@ export const PortfolioHero: React.FC<PortfolioHeroProps> = ({
             <span className="px-2 py-0.5 text-[10px] bg-slate-800 text-slate-300 rounded-full font-mono border border-slate-700">
               {summary.holdingsCount} Token đang nắm giữ
             </span>
+            {onRefresh && (
+              <button
+                onClick={onRefresh}
+                className="px-2.5 py-0.5 text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full font-mono border border-slate-700 flex items-center space-x-1 transition-colors"
+                title="Làm mới dữ liệu giá và số dư tức thì"
+              >
+                <RefreshCw className="w-2.5 h-2.5 text-emerald-400" />
+                <span>Cập nhật Live</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-baseline space-x-4 flex-wrap">

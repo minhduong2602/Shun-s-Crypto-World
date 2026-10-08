@@ -4,7 +4,7 @@ import { verifyTotpCode } from '@/lib/crypto-totp';
 
 export async function POST(req: NextRequest) {
   try {
-    const { code, isEnabling } = await req.json();
+    const { code, isEnabling, action } = await req.json();
     const settings = db.getSettings();
 
     const secret = settings.twoFactorSecret;
@@ -15,6 +15,15 @@ export async function POST(req: NextRequest) {
     const isValid = verifyTotpCode(secret, code);
     if (!isValid) {
       return NextResponse.json({ error: 'Mã OTP 6 chữ số không hợp lệ hoặc đã hết hạn' }, { status: 400 });
+    }
+
+    if (action === 'disable') {
+      db.updateSettings({ twoFactorEnabled: false, twoFactorSecret: undefined });
+      return NextResponse.json({
+        success: true,
+        twoFactorEnabled: false,
+        message: 'Đã tắt xác thực hai yếu tố (2FA)',
+      });
     }
 
     // If verifying to enable 2FA for the first time

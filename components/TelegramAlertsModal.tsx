@@ -7,6 +7,8 @@ import {
   Bell,
   Plus,
   Trash2,
+  Edit2,
+  Save,
   CheckCircle2,
   AlertCircle,
   RefreshCw,
@@ -40,6 +42,12 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   const [newTarget, setNewTarget] = useState('95000');
   const [newRecurring, setNewRecurring] = useState(false);
 
+  // Editing alert state
+  const [editingAlertId, setEditingAlertId] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState('');
+  const [editCondition, setEditCondition] = useState<AlertCondition>('ABOVE');
+  const [editRecurring, setEditRecurring] = useState(false);
+
   useEffect(() => {
     if (!isOpen) return;
     loadAlerts();
@@ -57,6 +65,38 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       console.error(e);
     }
   }
+
+  const handleStartEdit = (alt: PriceAlert) => {
+    setEditingAlertId(alt.id);
+    setEditTarget(String(alt.targetValue));
+    setEditCondition(alt.condition);
+    setEditRecurring(alt.isRecurring);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingAlertId(null);
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          condition: editCondition,
+          targetValue: Number(editTarget),
+          isRecurring: editRecurring,
+        }),
+      });
+      if (res.ok) {
+        setEditingAlertId(null);
+        loadAlerts();
+      }
+    } catch (e) {
+      console.error('Lỗi lưu cảnh báo:', e);
+    }
+  };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -310,43 +350,114 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             {alerts.length === 0 ? (
               <p className="text-slate-500 italic py-3 text-center">Chưa có cảnh báo nào được đặt.</p>
             ) : (
-              alerts.map((alt) => (
-                <div
-                  key={alt.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-[#0d1117] border border-[#21262d]"
-                >
-                  <div className="flex items-center space-x-3">
-                    <span className="font-mono font-bold text-emerald-400 text-sm">
-                      {alt.symbol}
-                    </span>
-                    <span className="text-slate-300">
-                      {alt.condition === 'ABOVE' && `Vượt ngưỡng $${alt.targetValue}`}
-                      {alt.condition === 'BELOW' && `Giảm dưới $${alt.targetValue}`}
-                      {alt.condition === 'PCT_UP_24H' && `Tăng 24h ≥ +${alt.targetValue}%`}
-                      {alt.condition === 'PCT_DOWN_24H' && `Giảm 24h ≤ -${alt.targetValue}%`}
-                    </span>
-                  </div>
+              alerts.map((alt) => {
+                const isEditing = editingAlertId === alt.id;
+                if (isEditing) {
+                  return (
+                    <div
+                      key={alt.id}
+                      className="p-3 rounded-xl bg-[#161b22] border border-sky-500/50 space-y-2.5 shadow-md"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-sky-400 text-sm">
+                          Chỉnh sửa: {alt.symbol}
+                        </span>
+                        <div className="flex items-center space-x-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(alt.id)}
+                            className="px-2.5 py-1 rounded bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] flex items-center space-x-1"
+                          >
+                            <Save className="w-3 h-3" />
+                            <span>Lưu</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="px-2.5 py-1 rounded bg-[#21262d] text-slate-300 text-[11px]"
+                          >
+                            Hủy
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleToggleAlert(alt.id)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold transition-colors ${
-                        alt.isActive
-                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
-                          : 'bg-slate-800 text-slate-500'
-                      }`}
-                    >
-                      {alt.isActive ? 'ĐANG BẬT' : 'TẠM TẮT'}
-                    </button>
-                    <button
-                      onClick={() => handleDeleteAlert(alt.id)}
-                      className="p-1 rounded text-slate-500 hover:text-rose-400 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                        <div>
+                          <label className="block text-slate-400 mb-1">Điều kiện</label>
+                          <select
+                            value={editCondition}
+                            onChange={(e) => setEditCondition(e.target.value as AlertCondition)}
+                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-white text-xs"
+                          >
+                            <option value="ABOVE">Giá vượt lên trên ($)</option>
+                            <option value="BELOW">Giá giảm xuống dưới ($)</option>
+                            <option value="PCT_UP_24H">Tăng 24h (% ≥)</option>
+                            <option value="PCT_DOWN_24H">Giảm 24h (% ≤)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-400 mb-1">Mục tiêu</label>
+                          <input
+                            type="number"
+                            step="any"
+                            value={editTarget}
+                            onChange={(e) => setEditTarget(e.target.value)}
+                            className="w-full bg-[#0d1117] border border-[#30363d] rounded-lg px-2 py-1 text-white font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div
+                    key={alt.id}
+                    className="flex items-center justify-between p-3 rounded-xl bg-[#0d1117] border border-[#21262d]"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="font-mono font-bold text-emerald-400 text-sm">
+                        {alt.symbol}
+                      </span>
+                      <span className="text-slate-300">
+                        {alt.condition === 'ABOVE' && `Vượt ngưỡng $${alt.targetValue}`}
+                        {alt.condition === 'BELOW' && `Giảm dưới $${alt.targetValue}`}
+                        {alt.condition === 'PCT_UP_24H' && `Tăng 24h ≥ +${alt.targetValue}%`}
+                        {alt.condition === 'PCT_DOWN_24H' && `Giảm 24h ≤ -${alt.targetValue}%`}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center space-x-1.5">
+                      <button
+                        onClick={() => handleToggleAlert(alt.id)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-semibold transition-colors ${
+                          alt.isActive
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                            : 'bg-slate-800 text-slate-500'
+                        }`}
+                        title="Bật/Tắt cảnh báo"
+                      >
+                        {alt.isActive ? 'ĐANG BẬT' : 'TẠM TẮT'}
+                      </button>
+                      <button
+                        onClick={() => handleStartEdit(alt)}
+                        className="p-1 rounded text-slate-400 hover:text-sky-400 hover:bg-[#21262d] transition-colors"
+                        title="Chỉnh sửa cảnh báo"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAlert(alt.id)}
+                        className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-[#21262d] transition-colors"
+                        title="Xóa cảnh báo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

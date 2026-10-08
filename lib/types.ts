@@ -13,6 +13,22 @@ export interface UserSettings {
   updatedAt: string;
 }
 
+export interface WalletToken {
+  id: string;
+  symbol: string;
+  name: string;
+  balance: number;
+  balanceUsd: number;
+  priceUsd: number;
+  change24h?: number;
+  contractAddress?: string;
+  isNative: boolean;
+  decimals: number;
+  icon?: string;
+  chain: ChainType;
+  allocationPercentage?: number;
+}
+
 export interface Wallet {
   id: string;
   chain: ChainType;
@@ -24,6 +40,7 @@ export interface Wallet {
   nativeBalance: number;
   nativeSymbol: string;
   tokensCount: number;
+  tokens?: WalletToken[];
   createdAt: string;
 }
 

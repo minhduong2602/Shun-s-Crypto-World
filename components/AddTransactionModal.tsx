@@ -15,17 +15,24 @@ import {
 } from 'lucide-react';
 import { TransactionType, Holding } from '@/lib/types';
 
+export interface PreselectedCoinInfo {
+  symbol: string;
+  name?: string;
+  currentPrice?: number;
+  price?: number;
+}
+
 interface AddTransactionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  preselectedCoin?: Holding | null;
+  preselectedCoin?: PreselectedCoinInfo | null;
 }
 
 interface TransactionFormProps {
   onClose: () => void;
   onSuccess: () => void;
-  preselectedCoin?: Holding | null;
+  preselectedCoin?: PreselectedCoinInfo | null;
 }
 
 const POPULAR_TICKERS = ['BTC', 'ETH', 'SOL', 'BNB', 'SUI', 'DOGE', 'PEPE', 'TAO', 'RENDER', 'NEAR', 'XRP', 'AVAX'];
@@ -36,11 +43,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   preselectedCoin,
 }) => {
   const [symbol, setSymbol] = useState(() => (preselectedCoin ? preselectedCoin.symbol : 'BTC'));
-  const [coinName, setCoinName] = useState(() => (preselectedCoin ? preselectedCoin.name : 'Bitcoin'));
+  const [coinName, setCoinName] = useState(() => (preselectedCoin?.name || 'Bitcoin'));
   const [type, setType] = useState<TransactionType>('BUY');
   const [amount, setAmount] = useState('');
   const [pricePerCoin, setPricePerCoin] = useState(() => {
-    if (preselectedCoin) return String(preselectedCoin.currentPrice);
+    if (preselectedCoin) {
+      const p = preselectedCoin.currentPrice ?? preselectedCoin.price;
+      if (p) return String(p);
+    }
     return '91450';
   });
   const [fee, setFee] = useState('0');

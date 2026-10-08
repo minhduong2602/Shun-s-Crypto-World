@@ -30,7 +30,12 @@ export default function Home() {
 
   // Modals state
   const [showAddTxModal, setShowAddTxModal] = useState(false);
-  const [preselectedCoin, setPreselectedCoin] = useState<Holding | null>(null);
+  const [preselectedCoin, setPreselectedCoin] = useState<{
+    symbol: string;
+    name?: string;
+    currentPrice?: number;
+    price?: number;
+  } | null>(null);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [show2faModal, setShow2faModal] = useState(false);
 
@@ -152,6 +157,7 @@ export default function Home() {
                   onOpenWallets={() => setActiveTab('wallets')}
                   onOpenAi={() => setActiveTab('ai')}
                   onOpenAlerts={() => setShowTelegramModal(true)}
+                  onRefresh={loadData}
                 />
 
                 {/* Holdings Table */}
@@ -160,6 +166,7 @@ export default function Home() {
                   baseCurrency={baseCurrency}
                   onSelectCoinForChart={handleSelectCoinForChart}
                   onAddTransactionForCoin={handleOpenAddTxWithCoin}
+                  onRefresh={loadData}
                 />
 
                 {/* Donut Allocation */}
@@ -184,10 +191,11 @@ export default function Home() {
                 tickers={tickers}
                 baseCurrency={baseCurrency}
                 onSelectCoinForChart={handleSelectCoinForChart}
-                onOpenAddTransaction={() => {
-                  setPreselectedCoin(null);
+                onOpenAddTransaction={(coin) => {
+                  setPreselectedCoin(coin || null);
                   setShowAddTxModal(true);
                 }}
+                onRefresh={loadData}
               />
             )}
 

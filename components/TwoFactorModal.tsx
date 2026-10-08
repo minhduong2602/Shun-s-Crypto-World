@@ -133,15 +133,80 @@ export const TwoFactorModal: React.FC<TwoFactorModalProps> = ({
             <div>
               <h3 className="font-bold text-white text-sm">2FA Đang Được Kích Hoạt</h3>
               <p className="text-slate-300 mt-1">
-                Tài khoản cá nhân của bạn trên <strong>Shun&apos;s Crypto World</strong> đã được bảo vệ bằng lớp mã OTP 6 số. Mọi phiên đăng nhập mới đều bắt buộc phải nhập mã từ ứng dụng xác thực.
+                Tài khoản cá nhân của bạn trên <strong>Shun&apos;s Crypto World</strong> đã được bảo vệ bằng lớp mã OTP 6 số.
               </p>
             </div>
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-colors"
-            >
-              Đã hiểu &amp; Đóng
-            </button>
+
+            {statusMsg && (
+              <div
+                className={`p-2.5 rounded-lg text-xs ${
+                  statusMsg.type === 'success'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                }`}
+              >
+                {statusMsg.text}
+              </div>
+            )}
+
+            <div className="pt-2 border-t border-[#21262d] space-y-2">
+              <div className="text-left">
+                <label className="block text-slate-400 text-[11px] mb-1 font-medium">
+                  Nhập mã OTP 6 số để Tắt 2FA:
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  placeholder="VD: 123456"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                  className="w-full text-center tracking-[0.5em] text-lg font-mono py-1.5 bg-[#0d1117] border border-[#30363d] rounded-xl text-white focus:outline-none focus:border-rose-500 font-bold"
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (otpCode.length !== 6) {
+                      setStatusMsg({ type: 'error', text: 'Nhập đủ 6 số OTP để tắt 2FA' });
+                      return;
+                    }
+                    setLoading(true);
+                    try {
+                      const res = await fetch('/api/auth/verify-2fa', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ code: otpCode.trim(), action: 'disable' }),
+                      });
+                      const data = await res.json();
+                      if (res.ok) {
+                        setStatusMsg({ type: 'success', text: 'Đã tắt 2FA thành công!' });
+                        onSuccess();
+                        setTimeout(onClose, 1200);
+                      } else {
+                        setStatusMsg({ type: 'error', text: data.error || 'Mã OTP không đúng' });
+                      }
+                    } catch {
+                      setStatusMsg({ type: 'error', text: 'Lỗi mạng khi tắt 2FA' });
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading || otpCode.length !== 6}
+                  className="w-1/2 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold transition-colors disabled:opacity-40"
+                >
+                  Tắt 2FA
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-1/2 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition-colors"
+                >
+                  Đóng
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="mt-4 space-y-4">

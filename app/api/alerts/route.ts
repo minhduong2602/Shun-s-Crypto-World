@@ -91,3 +91,33 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Lỗi cập nhật cảnh báo: ' + String(error) }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, condition, targetValue, isRecurring, isActive } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Thiếu alert ID' }, { status: 400 });
+    }
+
+    const updates: any = {};
+    if (condition) updates.condition = condition;
+    if (targetValue !== undefined) updates.targetValue = Number(targetValue);
+    if (isRecurring !== undefined) updates.isRecurring = Boolean(isRecurring);
+    if (isActive !== undefined) updates.isActive = Boolean(isActive);
+
+    const updated = db.updateAlert(id, updates);
+    if (!updated) {
+      return NextResponse.json({ error: 'Không tìm thấy cảnh báo cần chỉnh sửa' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      alert: updated,
+      message: 'Đã cập nhật cấu hình cảnh báo giá thành công!',
+    });
+  } catch (error) {
+    return NextResponse.json({ error: 'Lỗi chỉnh sửa cảnh báo: ' + String(error) }, { status: 500 });
+  }
+}

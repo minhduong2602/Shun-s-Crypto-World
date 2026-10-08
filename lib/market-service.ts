@@ -98,14 +98,19 @@ async function fetchFromExchange(path: string, options?: RequestInit): Promise<a
     const url = `${provider.baseUrl}${path}`;
 
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 4500);
+
       const res = await fetch(url, {
         ...options,
+        signal: controller.signal,
         headers: {
           Accept: 'application/json',
           'User-Agent': 'ShunCryptoPortfolio/1.0',
           ...(options?.headers || {}),
         },
       });
+      clearTimeout(timer);
 
       if (res.ok) {
         if (preferredProviderIndex !== idx) {

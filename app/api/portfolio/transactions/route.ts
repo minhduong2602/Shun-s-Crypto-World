@@ -77,3 +77,43 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Lỗi xóa giao dịch: ' + String(error) }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, type, amount, pricePerCoin, fee, notes, executedAt } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Thiếu transaction ID' }, { status: 400 });
+    }
+
+    const updates: any = {};
+    if (type) updates.type = type;
+    if (amount !== undefined) {
+      const numAmount = Number(amount);
+      if (numAmount <= 0) return NextResponse.json({ error: 'Số lượng phải lớn hơn 0' }, { status: 400 });
+      updates.amount = numAmount;
+    }
+    if (pricePerCoin !== undefined) {
+      const numPrice = Number(pricePerCoin);
+      if (numPrice <= 0) return NextResponse.json({ error: 'Đơn giá phải lớn hơn 0' }, { status: 400 });
+      updates.pricePerCoin = numPrice;
+    }
+    if (fee !== undefined) updates.fee = Number(fee || 0);
+    if (notes !== undefined) updates.notes = notes;
+    if (executedAt) updates.executedAt = executedAt;
+
+    const updatedTx = db.updateTransaction(id, updates);
+    if (!updatedTx) {
+      return NextResponse.json({ error: 'Không tìm thấy giao dịch cần chỉnh sửa' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      transaction: updatedTx,
+      message: 'Đã cập nhật giao dịch và tính toán lại danh mục thành công!',
+    });
+  } catch (error) {
+    return NextResponse.json({ error: 'Lỗi cập nhật giao dịch: ' + String(error) }, { status: 500 });
+  }
+}

@@ -9,12 +9,24 @@ export async function GET(req: NextRequest) {
     const coinId = (searchParams.get('coinId') || 'BTC').toUpperCase();
     const timeframe = (searchParams.get('timeframe') || '1D') as '1H' | '4H' | '1D' | '1W' | '1Y';
 
-    // Fetch real live candlesticks from Binance
-    let data: OHLCVPoint[] = await getLiveCandlesticks(coinId, timeframe);
+    // Fetch real live candlesticks from Binance / MEXC
+    let data: OHLCVPoint[] = [];
+    try {
+      data = await getLiveCandlesticks(coinId, timeframe);
+    } catch {
+      data = [];
+    }
 
     // Get live price
-    const liveInfo = await getLivePriceForSymbol(coinId);
-    const currentPrice = liveInfo ? liveInfo.priceUsd : DEFAULT_PRICES[coinId.toLowerCase()]?.price || 100;
+    let currentPrice = DEFAULT_PRICES[coinId.toLowerCase()]?.price || 100;
+    try {
+      const liveInfo = await getLivePriceForSymbol(coinId);
+      if (liveInfo?.priceUsd) {
+        currentPrice = liveInfo.priceUsd;
+      }
+    } catch {
+      // Keep default
+    }
 
     // Fallback generation only if Binance pair does not exist
     if (!data || data.length === 0) {
