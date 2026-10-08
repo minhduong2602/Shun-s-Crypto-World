@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { AppShell, type AppTab } from '@/components/app-shell';
 import { PortfolioHero } from '@/components/PortfolioHero';
 import { HoldingsTable } from '@/components/HoldingsTable';
@@ -24,6 +25,7 @@ import {
 import { RefreshCw } from 'lucide-react';
 
 export default function Home() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AppTab>('portfolio');
   const [baseCurrency, setBaseCurrency] = useState<'USD' | 'VND'>('USD');
   const [selectedCoinId, setSelectedCoinId] = useState('bitcoin');
@@ -79,6 +81,11 @@ export default function Home() {
 
         if (ignore) return;
 
+        if (!authRes.isAuthenticated) {
+          router.replace('/login');
+          return;
+        }
+
         if (summaryRes.summary) setSummary(summaryRes.summary);
         if (holdingsRes.holdings) setHoldings(holdingsRes.holdings);
         if (txRes.transactions) setTransactions(txRes.transactions);
@@ -88,8 +95,8 @@ export default function Home() {
           setGlobalMetrics(marketRes.globalMetrics);
         }
         if (authRes) {
-          setTwoFactorEnabled(authRes.twoFactorEnabled);
-          setTelegramConfigured(authRes.telegramConfigured);
+          setTwoFactorEnabled(Boolean(authRes.twoFactorEnabled));
+          setTelegramConfigured(Boolean(authRes.telegramConfigured));
         }
       } catch (err) {
         console.error('Lỗi nạp dữ liệu:', err);
@@ -104,7 +111,7 @@ export default function Home() {
       ignore = true;
       clearInterval(interval);
     };
-  }, [refreshTrigger]);
+  }, [refreshTrigger, router]);
 
   const handleSelectCoinForChart = (coinId: string) => {
     setSelectedCoinId(coinId);

@@ -1,19 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { NextResponse } from 'next/server';
+import { getServerSupabase } from '@/lib/supabase/server';
 
-export async function POST(req: NextRequest) {
-  const token = req.cookies.get('shun_session')?.value;
-  if (token) {
-    db.revokeSession(token);
-  }
-
-  const res = NextResponse.json({ success: true, message: 'Đã đăng xuất an toàn' });
-  res.cookies.set('shun_session', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
-  return res;
+export async function POST() {
+  const supabase = await getServerSupabase();
+  const { error } = await supabase.auth.signOut();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, message: 'Đã đăng xuất an toàn' });
 }

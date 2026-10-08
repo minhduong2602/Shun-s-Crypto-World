@@ -1,16 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db/store';
+import { NextResponse } from 'next/server';
+import { getServerSupabase } from '@/lib/supabase/server';
 
-export async function GET(req: NextRequest) {
-  const token = req.cookies.get('shun_session')?.value;
-  const settings = db.getSettings();
-  const isAuthenticated = Boolean(token && db.verifySession(token));
-
-  return NextResponse.json({
-    isAuthenticated,
-    twoFactorEnabled: settings.twoFactorEnabled,
-    baseCurrency: settings.baseCurrency,
-    telegramAlertsEnabled: settings.telegramAlertsEnabled,
-    telegramConfigured: Boolean(settings.telegramChatId && settings.telegramBotToken),
-  });
+export async function GET() {
+  const supabase = await getServerSupabase();
+  const { data } = await supabase.auth.getUser();
+  return NextResponse.json({ isAuthenticated: Boolean(data.user), user: data.user ? { email: data.user.email } : null });
 }
