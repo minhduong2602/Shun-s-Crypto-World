@@ -18,7 +18,7 @@ const items: Array<{ id: AppTab; label: string; icon: typeof LayoutDashboard }> 
 
 export function AppSidebar({ activeTab, onTabChange, className }: { activeTab: AppTab; onTabChange: (tab: AppTab) => void; className?: string }) {
   return (
-    <aside className={cn('flex h-full flex-col bg-card', className)}>
+    <aside className={cn('glass-nav flex h-full flex-col border-0 bg-transparent', className)}>
       <div className="flex h-16 items-center gap-3 px-5">
         <div className="grid size-9 place-items-center rounded-lg bg-emerald-500 text-emerald-950"><CandlestickChart className="size-5" /></div>
         <div><p className="font-semibold leading-none">Shun&apos;s Crypto</p><p className="mt-1 text-xs text-muted-foreground">Portfolio tracker</p></div>
