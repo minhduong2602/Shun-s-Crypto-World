@@ -72,7 +72,7 @@
 
 html { color-scheme: dark; }
 
-body { min-height: 100vh; overflow-x: clip; background: var(--background); color: var(--foreground); }
+body { min-height: 100vh; overflow-x: clip; overscroll-behavior-y: contain; background: var(--background); color: var(--foreground); }
 
 .app-canvas { position: relative; isolation: isolate; }
 .app-canvas::before { content: ''; position: fixed; inset: 0; z-index: -2; background: radial-gradient(circle at 12% 8%, oklch(0.52 0.11 215 / 24%), transparent 28rem), radial-gradient(circle at 88% 18%, oklch(0.58 0.13 170 / 16%), transparent 26rem), radial-gradient(circle at 62% 88%, oklch(0.4 0.11 290 / 18%), transparent 32rem), var(--background); }
@@ -96,3 +96,8 @@ body { min-height: 100vh; overflow-x: clip; background: var(--background); color
 
 :root:not(.dark) .app-canvas::before { background: radial-gradient(circle at 12% 8%, oklch(0.75 0.08 215 / 25%), transparent 28rem), radial-gradient(circle at 88% 18%, oklch(0.8 0.09 170 / 20%), transparent 26rem), oklch(0.975 0.008 250); }
 :root:not(.dark) .glass-panel, :root:not(.dark) .glass-nav, :root:not(.dark) .glass-metric { border-color: oklch(1 0 0 / 75%); background: oklch(1 0 0 / 70%); box-shadow: 0 16px 40px oklch(0.25 0.03 255 / 12%), inset 0 1px 0 white; }
+:root:not(.dark) .data-surface { border-color: oklch(0.72 0.025 255 / 40%); background: oklch(1 0 0 / 88%); box-shadow: 0 10px 30px oklch(0.25 0.03 255 / 9%); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

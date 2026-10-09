@@ -284,22 +284,23 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                 return (
                   <TableRow
                     key={item.id}
-                    className="hover:bg-accent/50 transition-colors cursor-pointer group"
-                    onClick={() => onSelectCoinForChart(item.symbol)}
+                    className="group transition-colors hover:bg-accent/50"
                   >
                     {/* Star favorite */}
-                    <TableCell className="text-center" onClick={(e) => toggleFavorite(item.symbol, e)}>
-                      <Star
+                    <TableCell className="text-center">
+                      <button type="button" onClick={(e) => toggleFavorite(item.symbol, e)} className="mx-auto grid size-11 cursor-pointer place-items-center rounded-lg transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:size-9" aria-label={isFav ? `Bỏ ${item.symbol} khỏi yêu thích` : `Thêm ${item.symbol} vào yêu thích`}>
+                       <Star
                         className={`w-4 h-4 mx-auto transition-colors ${
                           isFav ? 'text-amber-400 fill-amber-400' : 'text-slate-600 hover:text-amber-300'
                         }`}
                       />
+                      </button>
                     </TableCell>
 
                     <TableCell className="text-center font-mono text-muted-foreground">{item.rank}</TableCell>
 
                     <TableCell>
-                      <div className="flex items-center space-x-3">
+                      <button type="button" onClick={() => onSelectCoinForChart(item.symbol)} className="flex cursor-pointer items-center space-x-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Xem biểu đồ ${item.name}`}>
                         <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center font-bold text-foreground text-[10px] border">
                           {item.symbol.slice(0, 3)}
                         </div>
@@ -309,7 +310,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                             <span className="text-muted-foreground font-mono text-[11px]">{item.symbol}</span>
                           </div>
                         </div>
-                      </div>
+                      </button>
                     </TableCell>
 
                     <TableCell className="font-mono font-bold">
@@ -377,6 +378,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                         <Button variant="ghost" size="icon"
                           onClick={(e) => handleDeleteTicker(item.symbol, e)}
                           title="Xóa coin khỏi danh sách theo dõi"
+                          aria-label={`Xóa ${item.symbol} khỏi danh sách theo dõi`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>

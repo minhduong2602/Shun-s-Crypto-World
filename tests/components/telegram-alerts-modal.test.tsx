@@ -57,7 +57,6 @@ describe('TelegramAlertsModal', () => {
     expect(screen.getByText('$67,123.50')).toBeInTheDocument();
     const historyTable = screen.getByRole('table', { name: 'Lịch sử gửi cảnh báo Telegram' });
     expect(within(historyTable).getByText('BTC')).toBeInTheDocument();
-    expect(historyTable).toHaveClass('min-w-[620px]');
     expect(historyTable.parentElement?.parentElement).toHaveClass('overflow-x-auto');
   });
 
@@ -88,6 +87,25 @@ describe('TelegramAlertsModal', () => {
       expect(createCall).toBeDefined();
       expect(JSON.parse(String(createCall?.[1]?.body)).condition).toBe('PCT_UP_24H');
     });
+  });
+
+  it('selects a ticker suggestion when tapped and closes the result list', async () => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/market/search')) return Promise.resolve(Response.json({
+        results: [{ symbol: 'SOL', name: 'Solana', priceUsd: 150, change24h: 2.5 }],
+      }));
+      return Promise.resolve(Response.json({ alerts: [], telegramConfig: {}, deliveries: [] }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    render(<TelegramAlertsModal isOpen onClose={vi.fn()} baseCurrency="USD" />);
+
+    const tickerInput = await screen.findByRole('combobox', { name: 'Ticker' });
+    fireEvent.change(tickerInput, { target: { value: 'SOL' } });
+    fireEvent.click(await screen.findByRole('button', { name: /SOL Solana/ }));
+
+    expect(await screen.findByText(/Solana · Giá hiện tại/)).toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Gợi ý ticker cảnh báo' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Mục tiêu (USD)')).toHaveValue(150);
   });
 
   it('shows the server error when creating a price alert fails', async () => {

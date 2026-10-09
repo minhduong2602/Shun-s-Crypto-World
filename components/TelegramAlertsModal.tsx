@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Send,
-  X,
-  Bell,
   Plus,
   Trash2,
   Edit2,
@@ -13,7 +11,6 @@ import {
   AlertCircle,
   RefreshCw,
   ExternalLink,
-  ShieldAlert,
   Link2,
 } from 'lucide-react';
 import { PriceAlert, AlertCondition } from '@/lib/types';
@@ -27,7 +24,6 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 interface TelegramAlertsModalProps {
   isOpen: boolean;
@@ -70,6 +66,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   const [alertActionError, setAlertActionError] = useState<string | null>(null);
   const [alertLoadError, setAlertLoadError] = useState<string | null>(null);
   const [creatingAlert, setCreatingAlert] = useState(false);
+  const [busyAlertId, setBusyAlertId] = useState<string | null>(null);
 
   // New alert form
   const [newSymbol, setNewSymbol] = useState('BTC');
@@ -81,6 +78,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   const [tickerResults, setTickerResults] = useState<Array<{ id?: string; symbol: string; name: string; priceUsd: number | null; change24h: number | null }>>([]);
   const [isSearchingTicker, setIsSearchingTicker] = useState(false);
   const [selectedTickerQuote, setSelectedTickerQuote] = useState<{ name: string; priceUsd: number | null; change24h: number | null } | null>(null);
+  const firstTickerSuggestionRef = useRef<HTMLButtonElement>(null);
   const previousNewCondition = useRef(newCondition);
 
   // Editing alert state
@@ -180,6 +178,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
 
   const handleSaveEdit = async (id: string) => {
     setAlertActionError(null);
+    setBusyAlertId(id);
     try {
       const res = await fetch('/api/alerts', {
         method: 'PUT',
@@ -197,6 +196,8 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       await loadAlerts();
     } catch (error) {
       setAlertActionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
+    } finally {
+      setBusyAlertId(null);
     }
   };
 
@@ -211,7 +212,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       });
       const data = await res.json();
       if (res.ok) {
-        setTestResult({ success: true, msg: '🎉 Tin nhắn thử nghiệm đã được gửi đến Telegram thành công!' });
+        setTestResult({ success: true, msg: 'Tin nhắn thử nghiệm đã được gửi đến Telegram thành công.' });
       } else {
         setTestResult({ success: false, msg: data.error || 'Lỗi gửi tin nhắn Telegram' });
       }
@@ -277,6 +278,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
 
   const handleDeleteAlert = async (id: string) => {
     setAlertActionError(null);
+    setBusyAlertId(id);
     try {
       const res = await fetch(`/api/alerts?id=${id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
@@ -284,11 +286,14 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       await loadAlerts();
     } catch (error) {
       setAlertActionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
+    } finally {
+      setBusyAlertId(null);
     }
   };
 
   const handleToggleAlert = async (id: string) => {
     setAlertActionError(null);
+    setBusyAlertId(id);
     try {
       const res = await fetch(`/api/alerts?id=${id}`, { method: 'PATCH' });
       const data = await res.json().catch(() => ({}));
@@ -296,6 +301,8 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       await loadAlerts();
     } catch (error) {
       setAlertActionError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
+    } finally {
+      setBusyAlertId(null);
     }
   };
 
@@ -303,7 +310,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] max-w-3xl overflow-x-hidden overflow-y-auto p-4 sm:p-6">
+      <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-3xl overflow-x-hidden overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6">
         <DialogHeader className="border-b pb-4">
           <DialogTitle className="flex items-center gap-2"><Send className="size-5 text-primary" />Cảnh báo giá qua Telegram</DialogTitle>
           <DialogDescription>Thiết lập cảnh báo giá và nhận thông báo tự động qua bot Telegram.</DialogDescription>
@@ -326,7 +333,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             <p className="text-xs text-muted-foreground">Bot token chỉ được lưu phía server. Tạo liên kết, mở bot và nhấn Start để hoàn tất ghép cặp.</p>
 
           {testResult && (
-            <Alert variant={testResult.success ? 'default' : 'destructive'}>
+            <Alert variant={testResult.success ? 'default' : 'destructive'} aria-live="polite">
               {testResult.success ? (
                 <CheckCircle2 />
               ) : (
@@ -336,18 +343,18 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             </Alert>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={handleCreateBotLink} disabled={creatingBotLink}>
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
+            <Button type="button" className="w-full sm:w-auto" onClick={handleCreateBotLink} disabled={creatingBotLink} aria-busy={creatingBotLink}>
               {creatingBotLink ? <RefreshCw className="size-4 animate-spin" /> : <Link2 className="size-4" />}
               {telegramEnabled ? 'Liên kết lại bot' : 'Liên kết với Telegram'}
             </Button>
-            {botLink && <a href={botLink} target="_blank" rel="noopener noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium hover:bg-accent">
+            {botLink && <a href={botLink} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:w-auto">
               <ExternalLink className="size-4" />Mở bot và nhấn Start
             </a>}
-            {botLink && <Button type="button" variant="outline" onClick={handleCheckBotLink} disabled={checkingBotLink}>
+            {botLink && <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={handleCheckBotLink} disabled={checkingBotLink} aria-busy={checkingBotLink}>
               {checkingBotLink ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Tôi đã nhấn Start
             </Button>}
-            {telegramEnabled && <Button type="button" variant="outline" onClick={handleTestPing} disabled={testingMsg}>
+            {telegramEnabled && <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={handleTestPing} disabled={testingMsg} aria-busy={testingMsg}>
               {testingMsg ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}Gửi tin thử
             </Button>}
           </div>
@@ -359,7 +366,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
           <h3 className="mb-2 font-semibold">Thiết lập điều kiện cảnh báo</h3>
           <form
             onSubmit={handleCreateAlert}
-            className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card p-4 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
+            className="grid grid-cols-1 gap-4 rounded-xl border border-border bg-card/70 p-4 sm:grid-cols-2 sm:items-end"
           >
             <div className="grid gap-2">
               <Label htmlFor="alert-asset-source">Tài sản cần theo dõi</Label>
@@ -381,49 +388,68 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             {newWalletAssetId === 'ticker' ? (
               <div className="grid gap-2">
                 <Label htmlFor="alert-symbol">Ticker</Label>
-                <Command label="Tìm ticker cảnh báo" shouldFilter={false} className="relative overflow-visible rounded-md border border-input bg-background">
-                  <CommandInput
+                <div className="relative">
+                  <Input
                     id="alert-symbol"
-                    aria-label="Ticker"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={Boolean(tickerQuery.trim())}
+                    aria-controls={tickerQuery.trim() ? 'alert-ticker-suggestions' : undefined}
+                    aria-busy={isSearchingTicker}
                     value={tickerQuery || newSymbol}
-                    onValueChange={(value) => {
-                      setTickerQuery(value.toUpperCase());
-                      setNewSymbol(value.toUpperCase());
+                    onFocus={(event) => event.currentTarget.select()}
+                    onChange={(event) => {
+                      const value = event.target.value.toUpperCase();
+                      setTickerQuery(value);
+                      setNewSymbol(value);
                       setSelectedTickerQuote(null);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowDown' && tickerResults.length > 0) {
+                        event.preventDefault();
+                        firstTickerSuggestionRef.current?.focus();
+                      }
+                      if (event.key === 'Enter' && tickerResults[0]) {
+                        event.preventDefault();
+                        handleSelectTicker(tickerResults[0]);
+                      }
+                      if (event.key === 'Escape') setTickerQuery('');
                     }}
                     placeholder="Tìm BTC, ETH, SOL…"
                     className="font-mono"
                   />
                   {tickerQuery.trim() && (
-                    <CommandList aria-label="Gợi ý ticker cảnh báo" className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 rounded-md border border-border bg-popover shadow-xl">
-                      {isSearchingTicker ? <div className="p-3 text-center text-xs text-muted-foreground">Đang tìm và lấy giá hiện tại…</div>
-                        : tickerResults.length === 0 ? <CommandEmpty>Không tìm thấy ticker phù hợp.</CommandEmpty>
-                        : tickerResults.map((ticker) => <CommandItem key={`${ticker.id ?? ticker.symbol}:${ticker.name}`} value={`${ticker.symbol} ${ticker.name}`} onSelect={() => handleSelectTicker(ticker)} onPointerDown={(event) => { event.preventDefault(); handleSelectTicker(ticker); }} className="justify-between gap-3 px-3 py-2">
-                          <span className="min-w-0 truncate"><b className="font-mono text-primary">{ticker.symbol}</b> <span className="text-xs text-muted-foreground">{ticker.name}</span></span>
-                          <span className="shrink-0 text-right font-mono text-xs">{ticker.priceUsd === null ? 'Chưa có giá' : `$${ticker.priceUsd < 1 ? ticker.priceUsd.toFixed(6) : ticker.priceUsd.toLocaleString()}`}</span>
-                        </CommandItem>)}
-                    </CommandList>
+                    <ul id="alert-ticker-suggestions" aria-label="Gợi ý ticker cảnh báo" className="absolute left-0 right-0 top-full z-30 mt-1 max-h-60 overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-xl">
+                      {isSearchingTicker ? <li role="status" className="p-3 text-center text-sm text-muted-foreground">Đang tìm và lấy giá hiện tại…</li>
+                        : tickerResults.length === 0 ? <li className="p-3 text-center text-sm text-muted-foreground">Không tìm thấy ticker phù hợp.</li>
+                        : tickerResults.map((ticker, index) => <li key={`${ticker.id ?? ticker.symbol}:${ticker.name}`}>
+                          <button ref={index === 0 ? firstTickerSuggestionRef : undefined} type="button" onClick={() => handleSelectTicker(ticker)} className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            <span className="min-w-0 truncate"><b className="font-mono text-primary">{ticker.symbol}</b> <span className="text-sm text-muted-foreground">{ticker.name}</span></span>
+                            <span className="shrink-0 text-right font-mono text-xs">{ticker.priceUsd === null ? 'Chưa có giá' : `$${ticker.priceUsd < 1 ? ticker.priceUsd.toFixed(6) : ticker.priceUsd.toLocaleString()}`}</span>
+                          </button>
+                        </li>)}
+                    </ul>
                   )}
-                </Command>
+                </div>
                 {selectedTickerQuote && <p className="text-xs text-muted-foreground">{selectedTickerQuote.name} · Giá hiện tại: <span className="font-mono text-foreground">{selectedTickerQuote.priceUsd === null ? 'chưa có dữ liệu' : `$${selectedTickerQuote.priceUsd.toLocaleString()}`}</span>{selectedTickerQuote.change24h !== null && <span className={selectedTickerQuote.change24h >= 0 ? 'text-emerald-500' : 'text-destructive'}> · {selectedTickerQuote.change24h >= 0 ? '+' : ''}{selectedTickerQuote.change24h.toFixed(2)}%</span>}</p>}
               </div>
             ) : (
               <div className="grid gap-2">
                 <Label>Tài sản</Label>
-                <div className="flex h-9 items-center rounded-md border border-input bg-muted px-3 font-mono text-sm">
+                <div className="flex min-h-11 items-center rounded-md border border-input bg-muted px-3 font-mono text-sm sm:min-h-10">
                   {walletAssets.find((asset) => asset.id === newWalletAssetId)?.symbol ?? '—'}
                 </div>
               </div>
             )}
 
-            <div className="grid gap-2 sm:col-span-2 lg:col-span-2">
+            <div className="grid gap-2 sm:col-span-2">
               <span className="text-sm font-medium">Điều kiện</span>
               <Tabs value={newCondition} onValueChange={handleNewConditionChange}>
                 <TabsList aria-label="Điều kiện cảnh báo" className="grid h-auto w-full grid-cols-2 gap-1">
-                  <TabsTrigger value="ABOVE" className="min-h-9 whitespace-normal px-2 text-xs">Giá vượt trên ($)</TabsTrigger>
-                  <TabsTrigger value="BELOW" className="min-h-9 whitespace-normal px-2 text-xs">Giá dưới ($)</TabsTrigger>
-                  <TabsTrigger value="PCT_UP_24H" className="min-h-9 whitespace-normal px-2 text-xs">Tăng mạnh 24h (% ≥)</TabsTrigger>
-                  <TabsTrigger value="PCT_DOWN_24H" className="min-h-9 whitespace-normal px-2 text-xs">Giảm 24h (% ≤)</TabsTrigger>
+                  <TabsTrigger value="ABOVE" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Giá vượt trên ($)</TabsTrigger>
+                  <TabsTrigger value="BELOW" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Giá dưới ($)</TabsTrigger>
+                  <TabsTrigger value="PCT_UP_24H" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Tăng mạnh 24h (% ≥)</TabsTrigger>
+                  <TabsTrigger value="PCT_DOWN_24H" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Giảm 24h (% ≤)</TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
@@ -442,17 +468,31 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
               />
             </div>
 
-            <div>
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-border bg-background/60 px-3 py-2.5 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={newRecurring}
+                onChange={(event) => setNewRecurring(event.target.checked)}
+                className="mt-0.5 size-5 shrink-0 accent-primary"
+              />
+              <span className="grid gap-0.5">
+                <span className="text-sm font-medium">Cảnh báo lặp lại</span>
+                <span className="text-xs text-muted-foreground">Tiếp tục gửi thông báo ở những lần giá vượt ngưỡng tiếp theo.</span>
+              </span>
+            </label>
+
+            <div className="sm:col-span-2">
               <Button
                 type="submit"
-                className="w-full lg:col-span-1"
+                className="w-full"
                 disabled={creatingAlert}
+                aria-busy={creatingAlert}
               >
                 {creatingAlert ? <RefreshCw className="size-4 animate-spin" /> : <Plus className="size-4" />}{creatingAlert ? 'Đang thêm…' : 'Thêm cảnh báo'}
               </Button>
             </div>
           </form>
-          {newAlertError && <Alert variant="destructive" className="mt-3"><AlertCircle /><AlertDescription>{newAlertError}</AlertDescription></Alert>}
+          {newAlertError && <Alert variant="destructive" className="mt-3" aria-live="assertive"><AlertCircle /><AlertDescription>{newAlertError}</AlertDescription></Alert>}
         </div>
 
         {/* Active Alerts List */}
@@ -472,16 +512,18 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                       key={alt.id}
                       className="space-y-3 rounded-lg border border-primary/40 bg-card p-4 shadow-sm"
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <span className="font-mono text-sm font-bold text-primary">
                           Chỉnh sửa: {alt.symbol}
                         </span>
-                        <div className="flex items-center space-x-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button size="sm"
                             type="button"
                             onClick={() => handleSaveEdit(alt.id)}
+                            disabled={busyAlertId === alt.id}
+                            aria-busy={busyAlertId === alt.id}
                           >
-                            <Save className="size-3.5" />Lưu
+                            {busyAlertId === alt.id ? <RefreshCw className="size-3.5 animate-spin" /> : <Save className="size-3.5" />}Lưu
                           </Button>
                           <Button variant="outline" size="sm"
                             type="button"
@@ -497,10 +539,10 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                           <span className="text-sm font-medium">Điều kiện</span>
                           <Tabs value={editCondition} onValueChange={(value) => setEditCondition(value as AlertCondition)}>
                             <TabsList aria-label="Điều kiện chỉnh sửa" className="grid h-auto w-full grid-cols-2 gap-1">
-                              <TabsTrigger value="ABOVE" className="min-h-9 whitespace-normal px-2 text-xs">Giá vượt trên ($)</TabsTrigger>
-                              <TabsTrigger value="BELOW" className="min-h-9 whitespace-normal px-2 text-xs">Giá dưới ($)</TabsTrigger>
-                              <TabsTrigger value="PCT_UP_24H" className="min-h-9 whitespace-normal px-2 text-xs">Tăng mạnh 24h (% ≥)</TabsTrigger>
-                              <TabsTrigger value="PCT_DOWN_24H" className="min-h-9 whitespace-normal px-2 text-xs">Giảm 24h (% ≤)</TabsTrigger>
+                              <TabsTrigger value="ABOVE" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Giá vượt trên ($)</TabsTrigger>
+                              <TabsTrigger value="BELOW" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Giá dưới ($)</TabsTrigger>
+                              <TabsTrigger value="PCT_UP_24H" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Tăng mạnh 24h (% ≥)</TabsTrigger>
+                              <TabsTrigger value="PCT_DOWN_24H" className="min-h-11 whitespace-normal px-2 text-xs sm:min-h-9">Giảm 24h (% ≤)</TabsTrigger>
                             </TabsList>
                           </Tabs>
                         </div>
@@ -516,6 +558,16 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                             className="font-mono"
                           />
                         </div>
+
+                        <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-background/60 px-3 py-2 sm:col-span-2">
+                          <input
+                            type="checkbox"
+                            checked={editRecurring}
+                            onChange={(event) => setEditRecurring(event.target.checked)}
+                            className="size-5 shrink-0 accent-primary"
+                          />
+                          <span className="text-sm font-medium">Cảnh báo lặp lại</span>
+                        </label>
                       </div>
                     </div>
                   );
@@ -524,29 +576,33 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                 return (
                   <div
                     key={alt.id}
-                    className="flex items-center justify-between rounded-lg border border-border bg-card p-3"
+                    className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="font-mono text-sm font-bold text-primary">
                         {alt.symbol}
                       </span>
-                      <span className="text-foreground">
+                      <span className="min-w-0 text-foreground">
                         {alt.condition === 'ABOVE' && `Vượt ngưỡng $${alt.targetValue}`}
                         {alt.condition === 'BELOW' && `Giảm dưới $${alt.targetValue}`}
                         {alt.condition === 'PCT_UP_24H' && `Tăng 24h ≥ +${alt.targetValue}%`}
                         {alt.condition === 'PCT_DOWN_24H' && `Giảm 24h ≤ -${alt.targetValue}%`}
                       </span>
+                      {alt.isRecurring && <Badge variant="outline">Lặp lại</Badge>}
                     </div>
 
-                    <div className="flex items-center space-x-1.5">
+                    <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
                       <Button variant={alt.isActive ? 'secondary' : 'outline'} size="sm"
                         onClick={() => handleToggleAlert(alt.id)}
+                        disabled={busyAlertId === alt.id}
+                        aria-busy={busyAlertId === alt.id}
                         title="Bật/Tắt cảnh báo"
                       >
                         {alt.isActive ? 'ĐANG BẬT' : 'TẠM TẮT'}
                       </Button>
                       <Button variant="ghost" size="icon"
                         onClick={() => handleStartEdit(alt)}
+                        disabled={busyAlertId === alt.id}
                         title="Chỉnh sửa cảnh báo"
                         aria-label={`Chỉnh sửa cảnh báo ${alt.symbol}`}
                       >
@@ -554,6 +610,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                       </Button>
                       <Button variant="ghost" size="icon"
                         onClick={() => handleDeleteAlert(alt.id)}
+                        disabled={busyAlertId === alt.id}
                         title="Xóa cảnh báo"
                         aria-label={`Xóa cảnh báo ${alt.symbol}`}
                       >
@@ -573,13 +630,13 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
           </CardHeader>
           <CardContent className="p-0">
             <div className="max-w-full overflow-x-auto">
-              <Table aria-label="Lịch sử gửi cảnh báo Telegram" className="min-w-[620px]">
+              <Table aria-label="Lịch sử gửi cảnh báo Telegram">
               <TableHeader>
                 <TableRow>
                   <TableHead>Thời gian</TableHead>
                   <TableHead>Ticker</TableHead>
                   <TableHead className="text-right">Giá ghi nhận</TableHead>
-                  <TableHead className="text-right">24h</TableHead>
+                  <TableHead className="hidden text-right sm:table-cell">24h</TableHead>
                   <TableHead className="text-right">Trạng thái</TableHead>
                 </TableRow>
               </TableHeader>
@@ -595,7 +652,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{new Date(delivery.createdAt).toLocaleString('vi-VN')}</TableCell>
                       <TableCell className="font-mono font-medium">{relatedAlert?.symbol ?? '—'}</TableCell>
                       <TableCell className="text-right font-mono">{delivery.observedPriceUsd === null ? '—' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(delivery.observedPriceUsd)}</TableCell>
-                      <TableCell className="text-right font-mono">{delivery.observedChange24h === null ? '—' : `${delivery.observedChange24h.toFixed(2)}%`}</TableCell>
+                      <TableCell className="hidden text-right font-mono sm:table-cell">{delivery.observedChange24h === null ? '—' : `${delivery.observedChange24h.toFixed(2)}%`}</TableCell>
                       <TableCell className="text-right"><Badge variant={statusVariants[delivery.status]}>{statusLabels[delivery.status]}</Badge></TableCell>
                     </TableRow>
                   );

@@ -410,14 +410,14 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                         {wallet.label}
                       </span>
                     </div>
-                    <div className="flex items-center space-x-1">
+                    <div className="flex items-center gap-2">
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={(e) => handleSync(wallet.id, e)}
                         disabled={syncingId === wallet.id}
-                        className="size-8 rounded-lg"
+                        className="size-11 rounded-lg sm:size-9"
                         aria-label="Đồng bộ lại số dư on-chain"
                         title="Đồng bộ lại số dư on-chain"
                       >
@@ -428,7 +428,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                         variant="ghost"
                         size="icon"
                         onClick={(e) => handleOpenEditWallet(wallet, e)}
-                        className="size-8 rounded-lg"
+                        className="size-11 rounded-lg sm:size-9"
                         aria-label="Đổi tên nhãn ví"
                         title="Đổi tên nhãn ví"
                       >
@@ -438,7 +438,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                         href={explorerLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                        className="grid size-11 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:size-9"
                         aria-label={`Mở Explorer cho ví ${wallet.label}`}
                         title="Kiểm tra trực tiếp trên Blockchain Explorer"
                       >
@@ -449,7 +449,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                         variant="ghost"
                         size="icon"
                         onClick={(e) => handleOpenDelete(wallet, e)}
-                        className="size-8 rounded-lg text-destructive"
+                        className="size-11 rounded-lg text-destructive sm:size-9"
                         aria-label="Xóa ví khỏi danh sách theo dõi"
                         title="Xóa ví khỏi danh sách theo dõi"
                       >
@@ -468,7 +468,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                       variant="ghost"
                       size="icon"
                       onClick={(e) => handleCopy(wallet.address, wallet.id, e)}
-                      className="ml-2 size-7"
+                      className="ml-2 size-11 sm:size-9"
                       aria-label="Sao chép địa chỉ ví"
                       title="Sao chép địa chỉ"
                     >
@@ -565,7 +565,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                     variant="ghost"
                     size="icon"
                     onClick={(e) => handleCopy(selectedWallet.address, 'modal-addr', e)}
-                    className="size-7"
+                    className="size-11 sm:size-9"
                     aria-label="Sao chép địa chỉ ví"
                     title="Sao chép địa chỉ"
                   >
@@ -711,7 +711,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                   {tokenSearch && (
                     <Button variant="ghost" size="icon"
                       onClick={() => setTokenSearch('')}
-                      className="absolute right-1 top-1/2 size-7 -translate-y-1/2"
+                      className="absolute right-0 top-1/2 size-11 -translate-y-1/2 sm:right-1 sm:size-9"
                       aria-label="Xóa nội dung tìm token"
                     >
                       <X className="w-3.5 h-3.5" />
@@ -851,7 +851,7 @@ export const ViewOnlyWallets: React.FC<ViewOnlyWalletsProps> = ({
                                       variant="ghost"
                                       size="icon"
                                       onClick={(e) => handleCopy(token.contractAddress!, `tok-${token.id}`, e)}
-                                      className="size-7"
+                                      className="size-11 sm:size-9"
                                       aria-label={`Sao chép hợp đồng ${token.symbol}`}
                                       title={`Sao chép hợp đồng: ${token.contractAddress}`}
                                     >
