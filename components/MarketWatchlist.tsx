@@ -130,13 +130,10 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
       });
       if (res.ok) {
         setFavorites((prev) => new Set(prev).add(coin.symbol.toUpperCase()));
-        setAddSuccessMsg(`Đã thêm ${coin.symbol.toUpperCase()} vào danh sách theo dõi!`);
-        setTimeout(() => {
-          setShowAddCoinModal(false);
-          setAddSearchQuery('');
-          setSearchResults([]);
-          setAddSuccessMsg('');
-        }, 1200);
+        setShowAddCoinModal(false);
+        setAddSearchQuery('');
+        setSearchResults([]);
+        setAddSuccessMsg('');
         onRefresh?.();
       }
     } catch (err) {
@@ -395,7 +392,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
 
       {/* Add Custom Coin Modal */}
       <Dialog open={showAddCoinModal} onOpenChange={setShowAddCoinModal}>
-        <DialogContent>
+        <DialogContent className="w-[calc(100%-1rem)] max-w-lg overflow-x-hidden p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>Thêm coin yêu thích</DialogTitle>
               <DialogDescription>Tìm mã giao dịch để lưu vào danh sách theo dõi của bạn.</DialogDescription>
@@ -436,14 +433,15 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                   ) : null
                 ) : (
                   searchResults.map((coin) => (
-                    <div
+                    <button
+                      type="button"
                       key={`${coin.id ?? coin.symbol}:${coin.name}`}
                       onClick={() => handleAddCoinToWatchlist(coin)}
-                    className="flex cursor-pointer items-center justify-between rounded-md border bg-card p-2.5 transition-colors hover:bg-accent"
+                      className="flex w-full cursor-pointer items-center justify-between gap-3 rounded-md border bg-card p-2.5 text-left transition-colors hover:bg-accent"
                     >
-                      <div className="flex items-center space-x-2.5">
+                      <div className="flex min-w-0 items-center space-x-2.5">
                         <span className="font-bold text-foreground font-mono">{coin.symbol}</span>
-                        <span className="text-xs text-muted-foreground">{coin.name}</span>
+                        <span className="truncate text-xs text-muted-foreground">{coin.name}</span>
                       </div>
                       <div className="flex items-center space-x-3 text-right">
                         <div>
@@ -458,11 +456,8 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                             {coin.change24h === null ? '—' : `${coin.change24h >= 0 ? '+' : ''}${coin.change24h.toFixed(2)}%`}
                           </div>
                         </div>
-                        <Button type="button" size="sm" disabled={isAdding} onClick={() => handleAddCoinToWatchlist(coin)}>
-                          Thêm
-                        </Button>
                       </div>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>

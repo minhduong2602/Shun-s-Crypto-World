@@ -27,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 interface TelegramAlertsModalProps {
   isOpen: boolean;
@@ -76,6 +77,10 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
   const [newTarget, setNewTarget] = useState('95000');
   const [newRecurring, setNewRecurring] = useState(false);
   const [newWalletAssetId, setNewWalletAssetId] = useState('ticker');
+  const [tickerQuery, setTickerQuery] = useState('');
+  const [tickerResults, setTickerResults] = useState<Array<{ id?: string; symbol: string; name: string; priceUsd: number | null; change24h: number | null }>>([]);
+  const [isSearchingTicker, setIsSearchingTicker] = useState(false);
+  const [selectedTickerQuote, setSelectedTickerQuote] = useState<{ name: string; priceUsd: number | null; change24h: number | null } | null>(null);
   const previousNewCondition = useRef(newCondition);
 
   // Editing alert state
@@ -88,6 +93,27 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
     if (!isOpen) return;
     loadAlerts();
   }, [isOpen]);
+
+  useEffect(() => {
+    const query = tickerQuery.trim();
+    if (!query || newWalletAssetId !== 'ticker') {
+      setTickerResults([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setIsSearchingTicker(true);
+      try {
+        const response = await fetch(`/api/market/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json().catch(() => ({}));
+        setTickerResults(Array.isArray(data.results) ? data.results : []);
+      } catch {
+        setTickerResults([]);
+      } finally {
+        setIsSearchingTicker(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [newWalletAssetId, tickerQuery]);
 
   async function loadAlerts() {
     try {
@@ -219,11 +245,24 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       if (!res.ok) throw new Error(data.error || 'Không thể tạo cảnh báo');
       await loadAlerts();
       setNewWalletAssetId('ticker');
+      setTickerQuery('');
+      setTickerResults([]);
+      setSelectedTickerQuote(null);
     } catch (error) {
       setNewAlertError(error instanceof Error ? error.message : 'Không thể kết nối máy chủ');
     } finally {
       setCreatingAlert(false);
     }
+  };
+
+  const handleSelectTicker = (ticker: { symbol: string; name: string; priceUsd: number | null; change24h: number | null }) => {
+    setNewSymbol(ticker.symbol.toUpperCase());
+    setSelectedTickerQuote({ name: ticker.name, priceUsd: ticker.priceUsd, change24h: ticker.change24h });
+    if ((newCondition === 'ABOVE' || newCondition === 'BELOW') && ticker.priceUsd && ticker.priceUsd > 0) {
+      setNewTarget(String(ticker.priceUsd));
+    }
+    setTickerQuery('');
+    setTickerResults([]);
   };
 
   const handleNewConditionChange = (value: string) => {
@@ -264,7 +303,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] max-w-3xl overflow-x-hidden overflow-y-auto p-4 sm:p-6">
         <DialogHeader className="border-b pb-4">
           <DialogTitle className="flex items-center gap-2"><Send className="size-5 text-primary" />Cảnh báo giá qua Telegram</DialogTitle>
           <DialogDescription>Thiết lập cảnh báo giá và nhận thông báo tự động qua bot Telegram.</DialogDescription>
@@ -342,7 +381,31 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
             {newWalletAssetId === 'ticker' ? (
               <div className="grid gap-2">
                 <Label htmlFor="alert-symbol">Ticker</Label>
-                <Input id="alert-symbol" required minLength={2} maxLength={20} pattern="[A-Za-z0-9]+" value={newSymbol} onChange={(e) => setNewSymbol(e.target.value)} className="font-mono" placeholder="BTC" />
+                <Command label="Tìm ticker cảnh báo" shouldFilter={false} className="relative overflow-visible rounded-md border border-input bg-background">
+                  <CommandInput
+                    id="alert-symbol"
+                    aria-label="Ticker"
+                    value={tickerQuery || newSymbol}
+                    onValueChange={(value) => {
+                      setTickerQuery(value.toUpperCase());
+                      setNewSymbol(value.toUpperCase());
+                      setSelectedTickerQuote(null);
+                    }}
+                    placeholder="Tìm BTC, ETH, SOL…"
+                    className="font-mono"
+                  />
+                  {tickerQuery.trim() && (
+                    <CommandList aria-label="Gợi ý ticker cảnh báo" className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 rounded-md border border-border bg-popover shadow-xl">
+                      {isSearchingTicker ? <div className="p-3 text-center text-xs text-muted-foreground">Đang tìm và lấy giá hiện tại…</div>
+                        : tickerResults.length === 0 ? <CommandEmpty>Không tìm thấy ticker phù hợp.</CommandEmpty>
+                        : tickerResults.map((ticker) => <CommandItem key={`${ticker.id ?? ticker.symbol}:${ticker.name}`} value={`${ticker.symbol} ${ticker.name}`} onSelect={() => handleSelectTicker(ticker)} className="justify-between gap-3 px-3 py-2">
+                          <span className="min-w-0 truncate"><b className="font-mono text-primary">{ticker.symbol}</b> <span className="text-xs text-muted-foreground">{ticker.name}</span></span>
+                          <span className="shrink-0 text-right font-mono text-xs">{ticker.priceUsd === null ? 'Chưa có giá' : `$${ticker.priceUsd < 1 ? ticker.priceUsd.toFixed(6) : ticker.priceUsd.toLocaleString()}`}</span>
+                        </CommandItem>)}
+                    </CommandList>
+                  )}
+                </Command>
+                {selectedTickerQuote && <p className="text-xs text-muted-foreground">{selectedTickerQuote.name} · Giá hiện tại: <span className="font-mono text-foreground">{selectedTickerQuote.priceUsd === null ? 'chưa có dữ liệu' : `$${selectedTickerQuote.priceUsd.toLocaleString()}`}</span>{selectedTickerQuote.change24h !== null && <span className={selectedTickerQuote.change24h >= 0 ? 'text-emerald-500' : 'text-destructive'}> · {selectedTickerQuote.change24h >= 0 ? '+' : ''}{selectedTickerQuote.change24h.toFixed(2)}%</span>}</p>}
               </div>
             ) : (
               <div className="grid gap-2">

@@ -131,6 +131,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       setPricePerCoin(String(price));
     } else {
       setPricePerCoin('');
+      void fetchLivePrice(sym);
     }
   };
 
@@ -224,11 +225,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {/* Ticker Selector & Search Any Coin */}
         <div>
-          <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center justify-between gap-2 mb-1">
             <Label>Tìm hoặc nhập ticker</Label>
-            <div className="flex items-center space-x-1.5">
+            <div className="flex min-w-0 items-center space-x-1.5">
               <span className="font-mono text-emerald-400 font-bold text-xs">{symbol}</span>
-              <span className="text-slate-400 text-[11px]">({coinName})</span>
+              <span className="truncate text-slate-400 text-[11px]">({coinName})</span>
             </div>
           </div>
 
@@ -274,7 +275,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
           </Command>
 
           {/* Quick Popular Ticker Tags */}
-          <div className="mt-2 flex items-center space-x-1.5 flex-wrap gap-y-1.5">
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             <span className="text-[10px] text-slate-500 mr-1">Phổ biến:</span>
             {POPULAR_TICKERS.map((t) => (
               <Button variant={symbol === t ? 'secondary' : 'outline'} size="sm"
@@ -363,7 +364,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </div>
 
         {/* Total Preview */}
-        <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between">
+        <div className="p-3 bg-muted/40 rounded-xl border flex items-center justify-between gap-3">
           <span className="text-slate-400">Tổng giá trị giao dịch:</span>
           <span className="font-mono text-emerald-400 font-bold text-sm">
             ${totalCalculated.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -371,14 +372,15 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         </div>
 
         {/* Buttons */}
-        <div className="flex items-center justify-end space-x-3 pt-2">
+        <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end sm:space-x-3">
           <Button variant="outline"
             type="button"
             onClick={onClose}
+            className="w-full sm:w-auto"
           >
             Hủy
           </Button>
-          <Button type="submit" disabled={loading || fetchingPrice || !pricePerCoin}
+          <Button type="submit" className="w-full sm:w-auto" disabled={loading || fetchingPrice || !pricePerCoin}
           >
             {loading && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
             <span>Thêm {symbol} vào danh mục</span>
@@ -399,7 +401,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[90vh] w-[calc(100%-1rem)] max-w-lg overflow-x-hidden overflow-y-auto p-4 sm:p-6">
       <TransactionForm
         key={preselectedCoin?.symbol || 'dynamic-form'}
         onClose={onClose}

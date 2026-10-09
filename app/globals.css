@@ -72,4 +72,4 @@
 
 html { color-scheme: dark; }
 
-body { min-height: 100vh; background: var(--background); color: var(--foreground); }
+body { min-height: 100vh; overflow-x: clip; background: var(--background); color: var(--foreground); }

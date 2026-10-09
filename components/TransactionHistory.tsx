@@ -24,6 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buildTransactionsCsv, type TransactionImportRow } from '@/lib/portfolio/transactions-csv';
 import { formatPortfolioCurrency } from '@/lib/format-portfolio-currency';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface TransactionImportPreview {
   rows: TransactionImportRow[];
@@ -49,6 +50,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
   onRefresh,
 }) => {
   const [filterType, setFilterType] = useState<string>('ALL');
+  const isMobile = useIsMobile();
 
   // Delete modal state
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
@@ -259,7 +261,30 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
         </div>
       </CardHeader>
 
-      <div className="overflow-x-auto">
+      {isMobile ? (
+        <div className="divide-y" aria-label="Lịch sử giao dịch dạng lưới">
+          {filtered.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Không có giao dịch nào phù hợp.</p>
+          ) : filtered.map((tx) => (
+            <article key={tx.id} className="grid grid-cols-2 gap-x-4 gap-y-2 p-4 text-sm">
+              <div className="col-span-2 flex min-w-0 items-center justify-between gap-3">
+                <div className="min-w-0"><p className="font-mono font-semibold">{tx.symbol}</p><p className="truncate text-xs text-muted-foreground">{tx.name}</p></div>
+                <Badge variant={tx.type === 'SELL' ? 'destructive' : 'outline'} className={tx.type === 'BUY' ? 'border-emerald-500/40 text-emerald-500' : ''}>{tx.type}</Badge>
+              </div>
+              <div><p className="text-xs text-muted-foreground">Số lượng</p><p className="font-mono">{tx.amount} {tx.symbol}</p></div>
+              <div><p className="text-xs text-muted-foreground">Tổng tiền</p><p className="font-mono font-semibold">{formatCurrency(tx.totalAmount)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Đơn giá</p><p className="font-mono">{formatCurrency(tx.pricePerCoin)}</p></div>
+              <div><p className="text-xs text-muted-foreground">Thời gian</p><p className="font-mono text-xs">{new Date(tx.executedAt).toLocaleDateString('vi-VN')} · {new Date(tx.executedAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</p></div>
+              {tx.notes && <p className="col-span-2 truncate text-xs text-muted-foreground">{tx.notes}</p>}
+              <div className="col-span-2 flex justify-end gap-1 border-t pt-2">
+                <Button variant="ghost" size="icon" onClick={() => handleOpenEdit(tx)} aria-label={`Chỉnh sửa giao dịch ${tx.symbol}`} title="Chỉnh sửa giao dịch"><Edit2 className="w-3.5 h-3.5" /></Button>
+                <Button variant="ghost" size="icon" onClick={() => handleOpenDelete(tx)} aria-label={`Xóa giao dịch ${tx.symbol}`} title="Xóa giao dịch"><Trash2 className="w-3.5 h-3.5" /></Button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+      <div className="min-w-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -328,6 +353,7 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
           </TableBody>
         </Table>
       </div>
+      )}
 
       <Dialog open={importOpen} onOpenChange={(open) => { setImportOpen(open); if (!open) resetImport(); }}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
