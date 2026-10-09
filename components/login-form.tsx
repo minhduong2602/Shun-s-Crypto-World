@@ -34,7 +34,6 @@ export function LoginForm() {
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>Đăng nhập</CardTitle>
-        <CardDescription>Tài khoản được quản trị viên tạo và quản lý trong Supabase.</CardDescription>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4" onSubmit={submit}>

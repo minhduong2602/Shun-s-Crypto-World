@@ -313,14 +313,12 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
       <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-3xl overflow-x-hidden overflow-y-auto p-4 sm:max-h-[90vh] sm:p-6">
         <DialogHeader className="border-b pb-4">
           <DialogTitle className="flex items-center gap-2"><Send className="size-5 text-primary" />Cảnh báo giá qua Telegram</DialogTitle>
-          <DialogDescription>Thiết lập cảnh báo giá và nhận thông báo tự động qua bot Telegram.</DialogDescription>
         </DialogHeader>
 
         {/* Telegram Bot Credentials */}
         <Card className="mt-5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Kết nối Telegram</CardTitle>
-            <CardDescription>Liên kết tài khoản Telegram trực tiếp với bot — không cần tự tìm hay nhập Chat ID.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             <div className="flex flex-wrap items-center gap-2">
@@ -330,8 +328,6 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
               </Badge>
               {telegramEnabled && <span className="text-xs text-muted-foreground">Chat ID: {chatId}</span>}
             </div>
-            <p className="text-xs text-muted-foreground">Bot token chỉ được lưu phía server. Tạo liên kết, mở bot và nhấn Start để hoàn tất ghép cặp.</p>
-
           {testResult && (
             <Alert variant={testResult.success ? 'default' : 'destructive'} aria-live="polite">
               {testResult.success ? (
@@ -355,7 +351,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
               {checkingBotLink ? <RefreshCw className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}Tôi đã nhấn Start
             </Button>}
             {telegramEnabled && <Button type="button" className="w-full sm:w-auto" variant="outline" onClick={handleTestPing} disabled={testingMsg} aria-busy={testingMsg}>
-              {testingMsg ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}Gửi tin thử
+              {testingMsg ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />}Test Message
             </Button>}
           </div>
           </CardContent>
@@ -477,7 +473,6 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
               />
               <span className="grid gap-0.5">
                 <span className="text-sm font-medium">Cảnh báo lặp lại</span>
-                <span className="text-xs text-muted-foreground">Tiếp tục gửi thông báo ở những lần giá vượt ngưỡng tiếp theo.</span>
               </span>
             </label>
 

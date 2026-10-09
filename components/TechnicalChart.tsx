@@ -543,18 +543,10 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       {/* ======================================================== */}
       {/* 1. TOP BAR: PAIR SELECTOR, POPULAR ASSETS, SEARCH & ENGINE SWITCH */}
       {/* ======================================================== */}
-      <div className="flex flex-col items-start justify-between gap-3 border-b bg-card p-3 sm:p-4 xl:flex-row xl:items-center">
-        {/* Left: Active Coin & Quick Coin Pills */}
-        <div className="flex items-center space-x-2 sm:space-x-3 flex-wrap gap-y-2">
-          {/* Active Symbol Display */}
-          <div className="flex items-center space-x-2 rounded-lg border bg-muted/40 px-3 py-1.5">
-            <span className="font-mono text-xl font-extrabold tracking-tight text-foreground">{activeSymbol}</span>
-            <span className="font-mono text-xs text-muted-foreground">/USDT</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-          </div>
-
+      <div className="min-w-0 border-b bg-card p-3 sm:p-4">
+        <div className="flex min-w-0 w-full flex-col gap-3">
           {/* Quick Select Popular Assets */}
-          <div className="flex max-w-[320px] items-center space-x-1 overflow-x-auto rounded-lg border bg-muted/40 p-1 sm:max-w-[420px] scrollbar-none">
+          <div className="flex w-full min-w-0 items-center gap-1 overflow-x-auto rounded-xl border bg-muted/40 p-1 scrollbar-none" aria-label="Chọn nhanh cặp giao dịch">
             {POPULAR_CHART_COINS.map((c) => {
               const isSelected = activeSymbol === c.symbol;
               return (
@@ -563,7 +555,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
                   onClick={() => onSelectCoin(c.symbol)}
                   variant={isSelected ? 'default' : 'ghost'}
                   size="sm"
-                  className={`h-7 px-2 font-mono text-xs font-bold ${
+                  className={`h-9 shrink-0 px-3 font-mono text-xs font-bold ${
                     isSelected
                       ? 'bg-emerald-500 text-emerald-950 hover:bg-emerald-400'
                       : ''
@@ -575,44 +567,49 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
             })}
           </div>
 
-          {/* Search any coin */}
-          <form onSubmit={handleSearchSubmit} className="relative">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-            <Input
-              type="text"
-              placeholder="Tìm mã (VD: INJ, SUI)..."
-              value={searchTicker}
-              onChange={(e) => setSearchTicker(e.target.value)}
-              className="h-8 w-36 pl-7 font-mono text-xs sm:w-44"
-            />
-          </form>
-        </div>
+          <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_2.75rem] gap-2">
+            {/* Search any coin */}
+            <form onSubmit={handleSearchSubmit} className="relative min-w-0">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="search"
+                aria-label="Tìm mã giao dịch"
+                placeholder="Tìm mã (VD: INJ, SUI)..."
+                value={searchTicker}
+                onChange={(e) => setSearchTicker(e.target.value)}
+                className="h-11 w-full min-w-0 pl-9 font-mono text-sm"
+              />
+            </form>
 
-        {/* Right: fullscreen */}
-        <div className="flex items-center space-x-2 flex-wrap gap-y-2">
-          {/* Fullscreen Button */}
-          <Button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            variant="outline"
-            size="icon"
-            title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </Button>
+            {/* Fullscreen Button */}
+            <Button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              variant="outline"
+              size="icon"
+              className="size-11 shrink-0"
+              title={isFullscreen ? 'Thu nhỏ' : 'Toàn màn hình'}
+              aria-label={isFullscreen ? 'Thu nhỏ biểu đồ' : 'Mở biểu đồ toàn màn hình'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* ======================================================== */}
       {/* 2. REAL-TIME MARKET STATS RIBBON & TIMEFRAME SELECTOR */}
       {/* ======================================================== */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-muted/20 px-4 py-2.5 text-xs">
+      <div className="flex min-w-0 flex-col gap-3 border-b bg-muted/20 px-3 py-3 text-xs sm:px-4">
         {/* Price & 24h Stats */}
-        <div className="flex items-center space-x-4 flex-wrap gap-y-2">
-          {/* Live Price */}
-          <div className="flex items-center space-x-2">
-            <span className="text-slate-400 text-[11px]">Giá Live:</span>
+        <div className="grid min-w-0 gap-2">
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate font-mono text-base font-extrabold tracking-tight text-foreground sm:text-lg">{activeSymbol}</span>
+              <span className="shrink-0 font-mono text-xs text-muted-foreground">/USDT</span>
+              <span className="size-2 shrink-0 rounded-full bg-emerald-400 motion-safe:animate-pulse" aria-hidden="true" />
+            </div>
             <div
-              className={`px-2.5 py-1 rounded-lg font-mono font-black text-base sm:text-lg transition-colors ${
+              className={`max-w-full whitespace-nowrap rounded-lg px-2.5 py-1 text-right font-mono text-base font-black tabular-nums transition-colors sm:text-lg ${
                 priceFlash === 'up'
                   ? 'bg-emerald-500/30 text-emerald-300 ring-1 ring-emerald-400'
                   : priceFlash === 'down'
@@ -624,27 +621,44 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
             </div>
           </div>
 
-          {/* 24h Change */}
-          <div className="flex items-center space-x-1.5" aria-label="Biến động 24h">
-            <span className="text-slate-400 text-[11px]">Biến động:</span>
-            <span
-              className={`font-mono font-bold flex items-center space-x-0.5 px-2 py-0.5 rounded ${
-                visiblePriceChange24h === null
-                  ? 'bg-muted text-muted-foreground border border-border'
-                  : visiblePriceChange24h >= 0
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
-              }`}
-            >
-              {visiblePriceChange24h === null ? (
-                <span>—</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* 24h Change */}
+            <div className="flex items-center gap-1.5" aria-label="Biến động 24h">
+              <span className="text-[11px] text-muted-foreground">24h:</span>
+              <span
+                className={`font-mono font-bold flex items-center space-x-0.5 px-2 py-0.5 rounded ${
+                  visiblePriceChange24h === null
+                    ? 'bg-muted text-muted-foreground border border-border'
+                    : visiblePriceChange24h >= 0
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                }`}
+              >
+                {visiblePriceChange24h === null ? (
+                  <span>—</span>
+                ) : (
+                  <>
+                    {visiblePriceChange24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    <span>{visiblePriceChange24h >= 0 ? `+${visiblePriceChange24h}%` : `${visiblePriceChange24h}%`}</span>
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* Connection status badge */}
+            <div className="flex min-w-0 items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 font-mono text-[10px]">
+              {wsStatus === 'CONNECTED' ? (
+                <>
+                  <span className="size-2 shrink-0 rounded-full bg-emerald-400 motion-safe:animate-pulse" aria-hidden="true" />
+                  <span className="truncate font-medium text-emerald-600 dark:text-emerald-300">Binance Live · từng tick</span>
+                </>
               ) : (
                 <>
-                  {visiblePriceChange24h >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                  <span>{visiblePriceChange24h >= 0 ? `+${visiblePriceChange24h}%` : `${visiblePriceChange24h}%`}</span>
+                  <span className="size-2 shrink-0 rounded-full bg-amber-400" aria-hidden="true" />
+                  <span className="min-w-0 truncate font-medium text-amber-700 dark:text-amber-300">{hasCurrentQuote ? dataSource : visibleDataError ? 'Dữ liệu thị trường không khả dụng' : 'Đang tải dữ liệu thị trường…'}</span>
                 </>
               )}
-            </span>
+            </div>
           </div>
 
           {/* 24h High & Low */}
@@ -667,32 +681,18 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
             </div>
           )}
 
-          {/* Connection status badge */}
-          <div className="flex items-center space-x-1.5 rounded-full border bg-muted/40 px-2.5 py-1 font-mono text-[10px]">
-            {wsStatus === 'CONNECTED' ? (
-              <>
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="text-emerald-400 font-medium">Binance WS Stream (Từng tick)</span>
-              </>
-            ) : (
-              <>
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-                <span className="text-amber-300 font-medium">{hasCurrentQuote ? dataSource : visibleDataError ? 'Dữ liệu thị trường không khả dụng' : 'Đang tải dữ liệu thị trường…'}</span>
-              </>
-            )}
-          </div>
         </div>
 
         {/* Timeframe Buttons & Indicator Controls */}
-        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           {/* Timeframe Selector */}
-          <Tabs value={timeframe} onValueChange={setTimeframe}>
-            <TabsList className="h-8 gap-0.5 border bg-muted/40 p-0.5">
+          <Tabs value={timeframe} onValueChange={setTimeframe} className="min-w-0 max-w-full overflow-x-auto scrollbar-none">
+            <TabsList className="h-10 min-w-max gap-0.5 border bg-muted/40 p-0.5">
             {TIMEFRAMES.map((t) => (
               <TabsTrigger
                 key={t.id}
                 value={t.id}
-                className="h-7 px-2 font-mono text-xs font-bold"
+                className="h-9 min-w-10 px-2 font-mono text-xs font-bold"
               >
                 {t.label}
               </TabsTrigger>
@@ -700,12 +700,12 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
             </TabsList>
           </Tabs>
 
-          <div className="flex items-center space-x-1 text-[11px]">
+          <div className="flex min-w-0 max-w-full items-center gap-1 overflow-x-auto pb-0.5 text-[11px] scrollbar-none">
               <Button
                 onClick={() => setShowSMA20(!showSMA20)}
                 variant={showSMA20 ? 'outline' : 'ghost'}
                 size="sm"
-                className={`h-7 px-2 font-mono text-xs font-semibold ${
+                className={`h-10 shrink-0 px-2 font-mono text-xs font-semibold ${
                   showSMA20
                     ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
                     : 'text-muted-foreground'
@@ -717,7 +717,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
                 onClick={() => setShowSMA50(!showSMA50)}
                 variant={showSMA50 ? 'outline' : 'ghost'}
                 size="sm"
-                className={`h-7 px-2 font-mono text-xs font-semibold ${
+                className={`h-10 shrink-0 px-2 font-mono text-xs font-semibold ${
                   showSMA50
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                     : 'text-muted-foreground'
@@ -729,7 +729,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
                 onClick={() => setShowEMA200(!showEMA200)}
                 variant={showEMA200 ? 'outline' : 'ghost'}
                 size="sm"
-                className={`h-7 px-2 font-mono text-xs font-semibold ${
+                className={`h-10 shrink-0 px-2 font-mono text-xs font-semibold ${
                   showEMA200
                     ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
                     : 'text-muted-foreground'
@@ -741,7 +741,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
                 onClick={() => setShowVolume(!showVolume)}
                 variant={showVolume ? 'outline' : 'ghost'}
                 size="sm"
-                className={`h-7 px-2 font-mono text-xs font-semibold ${
+                className={`h-10 shrink-0 px-2 font-mono text-xs font-semibold ${
                   showVolume
                     ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                     : 'text-muted-foreground'
@@ -753,7 +753,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
                 onClick={handleFitContent}
                 variant="outline"
                 size="sm"
-                className="h-7 px-2 text-xs"
+                className="h-10 shrink-0 px-3 text-xs"
                 title="Khôi phục góc nhìn"
               >
                 Fit
@@ -768,7 +768,7 @@ export const TechnicalChart: React.FC<TechnicalChartProps> = ({
       <div className="relative min-h-[460px] flex-1 bg-background sm:min-h-[540px]">
         {/* HUD Toolbar (crosshair information) */}
         {currentDisplayPoint && (
-          <div className="absolute top-2 left-3 z-20 flex items-center space-x-3 text-[11px] font-mono bg-card/90 backdrop-blur-md px-3 py-1 rounded-lg border pointer-events-none text-muted-foreground flex-wrap gap-y-1">
+          <div className="pointer-events-none absolute left-3 right-3 top-2 z-20 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 overflow-hidden rounded-lg border bg-card/90 px-3 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur-md">
             <span className="text-foreground font-bold">{activeSymbol}/USDT</span>
             <span>
               O: <strong className="text-foreground">{currentDisplayPoint.open}</strong>

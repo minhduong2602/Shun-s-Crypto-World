@@ -216,42 +216,49 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
           {lastMarketUpdateAt && <p className="mt-1 text-xs text-muted-foreground" aria-hidden="true">Cập nhật lúc {new Date(lastMarketUpdateAt).toLocaleTimeString('vi-VN')}</p>}
         </div>
 
-        <div className="flex items-center space-x-2.5 w-full sm:w-auto">
+        <div className="grid w-full min-w-0 gap-2 sm:w-auto sm:grid-cols-[auto_minmax(12rem,1fr)_auto] sm:items-center">
           {/* Favorites toggle tabs */}
-          <div className="flex items-center gap-1 rounded-lg border bg-muted p-1 text-xs">
+          <div className="grid min-w-0 grid-cols-2 gap-1 rounded-xl border bg-muted p-1 text-xs sm:flex">
             <Button variant={filterView === 'ALL' ? 'default' : 'ghost'} size="sm"
               onClick={() => setFilterView('ALL')}
+              className="min-w-0 px-2"
             >
-              All ({tickers.length})
+              Tất cả ({tickers.length})
             </Button>
             <Button variant={filterView === 'FAVORITES' ? 'secondary' : 'ghost'} size="sm"
               onClick={() => setFilterView('FAVORITES')}
+              className="min-w-0 px-2"
             >
               <Star className="w-3 h-3 fill-current" />
-              <span>Yêu thích ({Array.from(favorites).length})</span>
+              <span className="truncate">Yêu thích ({Array.from(favorites).length})</span>
             </Button>
           </div>
 
-          {/* Search box */}
-          <div className="relative flex-1 sm:w-48">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
-              type="text"
-              placeholder="Tìm coin..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.75rem] gap-2 sm:contents">
+            {/* Search box */}
+            <div className="relative min-w-0">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input
+                type="search"
+                aria-label="Tìm trong bảng giá"
+                placeholder="Tìm coin..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full min-w-0 pl-9"
+              />
+            </div>
 
-          {/* Add custom coin button */}
-          <Button variant="outline" size="sm"
-            onClick={() => setShowAddCoinModal(true)}
-            title="Thêm đồng coin mới vào danh sách theo dõi"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Thêm coin</span>
-          </Button>
+            {/* Add custom coin button */}
+            <Button variant="outline" size="icon"
+              className="size-11 shrink-0 sm:w-auto sm:px-3"
+              onClick={() => setShowAddCoinModal(true)}
+              title="Thêm đồng coin mới vào danh sách theo dõi"
+              aria-label="Thêm coin vào danh sách theo dõi"
+            >
+              <Plus className="size-4" />
+              <span className="hidden sm:inline">Thêm coin</span>
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
@@ -271,15 +278,15 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
         {filtered.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Không tìm thấy đồng tiền nào trong danh sách.</p> : filtered.map((item) => {
           const is24hUp = item.priceChange24h >= 0;
           const isFav = favorites.has(item.symbol);
-          return <article key={item.id} className="soft-list rounded-[1.35rem] p-4">
-            <div className="flex items-start justify-between gap-3">
+          return <article key={item.id} className="soft-list min-w-0 overflow-hidden rounded-[1.35rem] p-4">
+            <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
               <button type="button" onClick={() => onSelectCoinForChart(item.symbol)} className="flex min-w-0 cursor-pointer items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Xem biểu đồ ${item.name}`}>
                 <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 font-mono text-xs font-bold text-primary">{item.symbol.slice(0, 4)}</span>
                 <span className="min-w-0"><span className="block truncate font-semibold">{item.name}</span><span className="text-xs text-muted-foreground">{item.symbol} · #{item.rank}</span></span>
               </button>
-              <div className="shrink-0 text-right"><p className="font-semibold tabular-nums">{formatCurrency(item.priceUsd)}</p><p className={`mt-1 text-xs font-medium ${is24hUp ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive'}`}>{is24hUp ? '+' : ''}{item.priceChange24h.toFixed(2)}%</p></div>
+              <div className="max-w-[9rem] shrink-0 text-right"><p className="whitespace-nowrap text-sm font-semibold tabular-nums sm:text-base" title={formatCurrency(item.priceUsd)}>{formatCurrency(item.priceUsd)}</p><p className={`mt-1 text-xs font-medium ${is24hUp ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive'}`}>{is24hUp ? '+' : ''}{item.priceChange24h.toFixed(2)}%</p></div>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/60 pt-3 text-xs"><div><p className="text-muted-foreground">Khối lượng 24h</p><p className="mt-1 font-medium tabular-nums">${(item.volume24hUsd / 1e6).toFixed(2)}M</p></div><div><p className="text-muted-foreground">Biên độ 24h</p><p className="mt-1 font-medium tabular-nums">${item.low24h.toLocaleString()} – ${item.high24h.toLocaleString()}</p></div></div>
+            <div className="mt-3 grid min-w-0 grid-cols-2 gap-3 border-t border-border/60 pt-3 text-xs"><div className="min-w-0"><p className="text-muted-foreground">Khối lượng 24h</p><p className="mt-1 break-words font-medium tabular-nums">${(item.volume24hUsd / 1e6).toFixed(2)}M</p></div><div className="min-w-0"><p className="text-muted-foreground">Biên độ 24h</p><p className="mt-1 break-words font-medium leading-relaxed tabular-nums">${item.low24h.toLocaleString()} – ${item.high24h.toLocaleString()}</p></div></div>
             <div className="mt-3 flex items-center justify-end gap-2">
               <Button variant="ghost" size="icon" onClick={(event) => toggleFavorite(item.symbol, event)} aria-label={isFav ? `Bỏ ${item.symbol} khỏi yêu thích` : `Thêm ${item.symbol} vào yêu thích`}><Star className={`size-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} /></Button>
               <Button variant="secondary" size="sm" onClick={() => onOpenAddTransaction({ symbol: item.symbol, name: item.name, price: item.priceUsd })}><Plus className="size-3.5" />Giao dịch</Button>

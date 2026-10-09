@@ -109,7 +109,7 @@ export function DashboardHoldingsTable({
       <CardHeader className="gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="space-y-1.5">
           <CardTitle>Danh mục tài sản</CardTitle>
-          <CardDescription>{visibleHoldings.length} tài sản · giá trị từ dữ liệu thị trường trực tiếp</CardDescription>
+          <CardDescription>{visibleHoldings.length} tài sản</CardDescription>
         </div>
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />

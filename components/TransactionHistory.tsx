@@ -238,7 +238,6 @@ export const TransactionHistory: React.FC<TransactionHistoryProps> = ({
             <Clock className="w-4 h-4 text-emerald-400" />
             <span>Lịch sử giao dịch</span>
           </CardTitle>
-          <CardDescription>Quản lý sổ cái; giá vốn và vị thế được tính lại từ giao dịch.</CardDescription>
         </div>
 
         {/* Filter */}

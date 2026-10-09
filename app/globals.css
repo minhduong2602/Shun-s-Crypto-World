@@ -70,12 +70,15 @@
 
 * { border-color: var(--border); }
 
-html { color-scheme: light; }
+html { width: 100%; max-width: 100%; overflow-x: clip; color-scheme: light; }
 html.dark { color-scheme: dark; }
 
-body { min-height: 100vh; overflow-x: clip; overscroll-behavior-y: contain; background: var(--background); color: var(--foreground); font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; letter-spacing: -0.01em; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 
-.app-canvas { position: relative; isolation: isolate; }
+body { width: 100%; min-height: 100vh; max-width: 100%; overflow-x: clip; overscroll-behavior-y: contain; background: var(--background); color: var(--foreground); font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif; letter-spacing: -0.01em; }
+
+.app-canvas { position: relative; width: 100%; min-width: 0; max-width: 100%; overflow-x: clip; isolation: isolate; }
 .app-canvas::before { content: ''; position: fixed; inset: 0; z-index: -2; background: radial-gradient(circle at 8% 4%, oklch(0.86 0.09 285 / 48%), transparent 30rem), radial-gradient(circle at 92% 22%, oklch(0.91 0.07 220 / 44%), transparent 28rem), radial-gradient(circle at 60% 92%, oklch(0.91 0.06 155 / 32%), transparent 30rem), var(--background); }
 .app-canvas::after { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; opacity: .15; background: linear-gradient(115deg, transparent 0 58%, oklch(1 0 0 / 22%) 58% 72%, transparent 72%); filter: blur(50px); }
 
