@@ -62,4 +62,17 @@ describe('POST /api/alerts/telegram/connect', () => {
     expect(response.status).toBe(503);
     expect(result.error).toContain('202610090012_telegram_bot_pairing.sql');
   });
+
+  it('names invalid server environment keys without exposing their values', async () => {
+    getServerEnvMock.mockImplementation(() => {
+      throw new Error('Missing or invalid server environment variables: SUPABASE_SERVICE_ROLE_KEY');
+    });
+
+    const response = await POST();
+    const result = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(result.error).toBe('Biến môi trường server thiếu hoặc không hợp lệ: SUPABASE_SERVICE_ROLE_KEY.');
+    expect(result.error).not.toContain('service-role-key');
+  });
 });

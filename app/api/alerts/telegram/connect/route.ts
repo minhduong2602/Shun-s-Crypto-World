@@ -69,8 +69,12 @@ export async function POST() {
     if (code === '42501' || /permission denied/i.test(message)) {
       return NextResponse.json({ error: 'Supabase từ chối quyền service-role khi tạo liên kết Telegram. Kiểm tra SUPABASE_SERVICE_ROLE_KEY trong Vercel.' }, { status: 503 });
     }
-    if (/Missing or invalid .*environment variables/i.test(message)) {
-      return NextResponse.json({ error: 'Cấu hình môi trường server trên Vercel chưa đầy đủ hoặc không hợp lệ. Kiểm tra SUPABASE_SERVICE_ROLE_KEY và các biến Supabase server-side.' }, { status: 503 });
+    const envIssue = message.match(/^Missing or invalid server environment variables:\s*(.+)$/i);
+    if (envIssue) {
+      const invalidKeys = envIssue[1].split(',').map((key) => key.trim()).filter((key) => /^[A-Z0-9_]+$/.test(key));
+      return NextResponse.json({
+        error: `Biến môi trường server thiếu hoặc không hợp lệ: ${invalidKeys.join(', ') || 'không xác định'}.`,
+      }, { status: 503 });
     }
     return NextResponse.json({ error: 'Không thể tạo liên kết Telegram lúc này' }, { status: 500 });
   }
