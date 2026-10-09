@@ -13,6 +13,8 @@ import { TelegramAlertsModal } from '@/components/TelegramAlertsModal';
 import { DataStatus } from '@/components/dashboard/data-status';
 import { Skeleton } from '@/components/ui/skeleton';
 import { createSingleFlightPoller } from '@/lib/async/single-flight-poller';
+import { parseBinanceMiniTickers, mergeLiveMarketTickers } from '@/lib/market/live-market-stream';
+import { connectWithReconnect, type WebSocketConnectionStatus } from '@/lib/market/reconnecting-websocket';
 import {
   Holding,
   PortfolioSummary,
@@ -64,6 +66,8 @@ export default function Home() {
   const [usdVndRate, setUsdVndRate] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [marketConnectionStatus, setMarketConnectionStatus] = useState<WebSocketConnectionStatus>('DISCONNECTED');
+  const [lastMarketUpdateAt, setLastMarketUpdateAt] = useState<number | null>(null);
 
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
@@ -162,6 +166,58 @@ export default function Home() {
     };
   }, [refreshTrigger, router]);
 
+  useEffect(() => {
+    let mounted = true;
+    const connection = connectWithReconnect('wss://stream.binance.com:9443/ws/!miniTicker@arr', {
+      onStatus: (status) => {
+        if (mounted) setMarketConnectionStatus(status);
+      },
+      onMessage: (event) => {
+        if (!mounted) return;
+        try {
+          const quotes = parseBinanceMiniTickers(JSON.parse(String(event.data)));
+          if (quotes.size === 0) return;
+          setTickers((current) => mergeLiveMarketTickers(current, quotes));
+          setLastMarketUpdateAt(Date.now());
+        } catch {
+          // Keep the latest valid prices if an upstream frame is malformed.
+        }
+      },
+    });
+    return () => {
+      mounted = false;
+      connection.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (marketConnectionStatus !== 'FALLBACK_REST') return;
+    let cancelled = false;
+    let inFlight = false;
+    const refreshMarket = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const response = await fetch('/api/market/tickers', { cache: 'no-store' });
+        const data = await response.json().catch(() => ({}));
+        if (!cancelled && response.ok && Array.isArray(data.tickers)) {
+          setTickers(data.tickers);
+          setGlobalMetrics(data.globalMetrics);
+          setUsdVndRate(Number.isFinite(data.usdVndRate) && data.usdVndRate > 0 ? data.usdVndRate : null);
+          setLastMarketUpdateAt(Date.now());
+        }
+      } finally {
+        inFlight = false;
+      }
+    };
+    void refreshMarket();
+    const timer = window.setInterval(refreshMarket, 10_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [marketConnectionStatus]);
+
   const handleSelectCoinForChart = (coinId: string) => {
     setSelectedCoinId(coinId);
     setActiveTab('chart');
@@ -215,6 +271,8 @@ export default function Home() {
                   setShowAddTxModal(true);
                 }}
                 onRefresh={loadData}
+                marketConnectionStatus={marketConnectionStatus}
+                lastMarketUpdateAt={lastMarketUpdateAt}
               />
             )}
 

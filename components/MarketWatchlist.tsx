@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatPortfolioCurrency } from '@/lib/format-portfolio-currency';
+import type { WebSocketConnectionStatus } from '@/lib/market/reconnecting-websocket';
 
 interface MarketWatchlistProps {
   tickers: MarketTicker[];
@@ -31,6 +32,8 @@ interface MarketWatchlistProps {
   onSelectCoinForChart: (coinId: string) => void;
   onOpenAddTransaction: (coin?: { symbol: string; name: string; price: number }) => void;
   onRefresh?: () => void;
+  marketConnectionStatus?: WebSocketConnectionStatus;
+  lastMarketUpdateAt?: number | null;
 }
 
 export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
@@ -40,6 +43,8 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
   onSelectCoinForChart,
   onOpenAddTransaction,
   onRefresh,
+  marketConnectionStatus = 'DISCONNECTED',
+  lastMarketUpdateAt = null,
 }) => {
   const [search, setSearch] = useState('');
   const [filterView, setFilterView] = useState<'ALL' | 'FAVORITES'>('ALL');
@@ -159,6 +164,12 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
       return true;
     });
 
+  const marketStatus = marketConnectionStatus === 'CONNECTED'
+    ? { label: 'Giá trực tiếp', dot: 'bg-emerald-500' }
+    : marketConnectionStatus === 'FALLBACK_REST'
+      ? { label: 'Dự phòng · 10 giây', dot: 'bg-amber-500' }
+      : { label: 'Đang kết nối', dot: 'bg-muted-foreground' };
+
   const renderSparkline = (points: number[], isPositive: boolean) => {
     if (!points || points.length < 2) return null;
     const min = Math.min(...points);
@@ -195,8 +206,15 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-col gap-4 border-b sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <CardTitle>Bảng giá thị trường</CardTitle>
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle>Bảng giá thị trường</CardTitle>
+            <Badge variant="outline" className="gap-1.5" aria-live="polite">
+              <span className={`size-2 rounded-full ${marketStatus.dot}`} aria-hidden="true" />
+              {marketStatus.label}
+            </Badge>
+          </div>
           <CardDescription>Giá giao dịch và khối lượng 24h trực tiếp từ sàn. Các chỉ số không có nguồn dữ liệu sẽ để trống.</CardDescription>
+          {lastMarketUpdateAt && <p className="mt-1 text-xs text-muted-foreground" aria-hidden="true">Cập nhật lúc {new Date(lastMarketUpdateAt).toLocaleTimeString('vi-VN')}</p>}
         </div>
 
         <div className="flex items-center space-x-2.5 w-full sm:w-auto">
