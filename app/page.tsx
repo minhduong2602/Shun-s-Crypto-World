@@ -255,7 +255,7 @@ export default function Home() {
             {/* Tab: Portfolio Overview */}
             {activeTab === 'portfolio' && (
               <div>
-                <PortfolioDashboard summary={summary} holdings={holdings} wallets={wallets} transactions={transactions} baseCurrency={baseCurrency} usdVndRate={usdVndRate} loading={loading} onRefresh={loadData} onSelectCoinForChart={handleSelectCoinForChart} onAddTransactionForCoin={handleOpenAddTxWithCoin} />
+                <PortfolioDashboard summary={summary} holdings={holdings} wallets={wallets} transactions={transactions} baseCurrency={baseCurrency} usdVndRate={usdVndRate} loading={loading} onRefresh={loadData} onAddTransaction={handleAddTransaction} onOpenAlerts={() => setShowTelegramModal(true)} onViewMarket={() => setActiveTab('market')} onSelectCoinForChart={handleSelectCoinForChart} onAddTransactionForCoin={handleOpenAddTxWithCoin} />
               </div>
             )}
 

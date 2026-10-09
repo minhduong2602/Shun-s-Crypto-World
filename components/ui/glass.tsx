@@ -4,7 +4,7 @@ import { buttonVariants, type ButtonProps } from '@/components/ui/button';
 
 /** A deliberately selective glass surface for primary dashboard focal points. */
 export const GlassCard = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <section ref={ref} className={cn('glass-panel rounded-2xl text-card-foreground', className)} {...props} />
+  <section ref={ref} className={cn('glass-panel rounded-[1.75rem] text-card-foreground', className)} {...props} />
 ));
 GlassCard.displayName = 'GlassCard';
 

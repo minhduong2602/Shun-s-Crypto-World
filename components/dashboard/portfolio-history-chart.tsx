@@ -93,7 +93,7 @@ export function PortfolioHistoryChart({ baseCurrency = 'USD', usdVndRate }: { ba
               {latest.totalValueUsd >= first.totalValueUsd ? '+' : ''}{formatCurrency(latest.totalValueUsd - first.totalValueUsd, baseCurrency, usdVndRate)} trong kỳ
             </p>}
           </div>
-          <svg className="h-56 w-full overflow-visible text-emerald-500" viewBox="0 0 1000 220" preserveAspectRatio="none" role="img" aria-label={`Lịch sử giá trị danh mục: ${snapshots.length} điểm dữ liệu`}>
+          <svg className="h-56 w-full overflow-visible text-primary" viewBox="0 0 1000 220" preserveAspectRatio="none" role="img" aria-label={`Lịch sử giá trị danh mục: ${snapshots.length} điểm dữ liệu`}>
             {[0, 1, 2, 3].map((line) => <line key={line} x1="16" x2="984" y1={16 + line * 62} y2={16 + line * 62} className="stroke-border" strokeDasharray="3 5" />)}
             {snapshots.length === 1 ? <circle cx="500" cy="110" r="5" fill="currentColor" /> : <polyline points={linePoints} fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}
           </svg>

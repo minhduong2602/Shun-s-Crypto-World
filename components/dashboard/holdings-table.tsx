@@ -106,7 +106,7 @@ export function DashboardHoldingsTable({
 
   return <>
     <Card>
-      <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <CardHeader className="gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
         <div className="space-y-1.5">
           <CardTitle>Danh mục tài sản</CardTitle>
           <CardDescription>{visibleHoldings.length} tài sản · giá trị từ dữ liệu thị trường trực tiếp</CardDescription>
@@ -119,19 +119,19 @@ export function DashboardHoldingsTable({
       {error && <div className="px-6 pb-4"><Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert></div>}
       <CardContent className="p-0">
         {isMobile ? (
-          <div className="divide-y" aria-label="Danh mục tài sản dạng lưới">
+          <div className="grid gap-3 px-3 pb-3" aria-label="Danh mục tài sản dạng lưới">
             {loading ? <p className="px-4 py-8 text-center text-sm text-muted-foreground">Đang tải danh mục…</p>
               : visibleHoldings.length === 0 ? <div className="px-4 py-10 text-center"><Coins className="mx-auto mb-2 size-5 text-muted-foreground" /><p className="text-sm text-muted-foreground">{query ? 'Không tìm thấy tài sản phù hợp.' : 'Chưa có tài sản. Hãy thêm ví hoặc giao dịch đầu tiên.'}</p></div>
               : visibleHoldings.map((holding) => {
                 const positive = (holding.priceChange24h ?? 0) >= 0;
                 const pnlPositive = (holding.unrealizedPnL ?? 0) >= 0;
-                return <article key={holding.id} className="grid grid-cols-2 gap-x-4 gap-y-2 p-4 text-sm">
-                  <div className="col-span-2 flex min-w-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-2"><div className="flex size-8 shrink-0 items-center justify-center rounded-full border bg-muted font-mono text-[10px] font-semibold">{holding.symbol.slice(0, 4)}</div><div className="min-w-0"><p className="truncate font-medium">{holding.name}</p><p className="text-xs text-muted-foreground">{holding.symbol}</p></div></div>{holding.priceChange24h !== null && <Badge variant="outline" className={positive ? 'border-emerald-500/30 text-emerald-500' : 'border-destructive/40 text-destructive'}>{positive ? '+' : ''}{holding.priceChange24h.toFixed(2)}%</Badge>}</div>
+                return <article key={holding.id} className="soft-list grid grid-cols-2 gap-x-4 gap-y-3 rounded-[1.35rem] p-4 text-sm">
+                  <div className="col-span-2 flex min-w-0 items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-primary/10 font-mono text-[10px] font-bold text-primary">{holding.symbol.slice(0, 4)}</div><div className="min-w-0"><p className="truncate font-semibold">{holding.name}</p><p className="text-xs text-muted-foreground">{holding.symbol}</p></div></div>{holding.priceChange24h !== null && <Badge variant="outline" className={positive ? 'rounded-full border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' : 'rounded-full border-destructive/40 text-destructive'}>{positive ? '+' : ''}{holding.priceChange24h.toFixed(2)}%</Badge>}</div>
                   <div><p className="text-xs text-muted-foreground">Giá trị</p><p className="font-medium tabular-nums">{holding.currentValue === null ? 'Chưa định giá' : currency(holding.currentValue)}</p></div>
                   <div><p className="text-xs text-muted-foreground">Số lượng</p><p className="font-mono tabular-nums">{holding.amount.toLocaleString('en-US', { maximumFractionDigits: 8 })} {holding.symbol}</p></div>
                   <div><p className="text-xs text-muted-foreground">Lãi / lỗ</p><p className={`font-mono tabular-nums ${pnlPositive ? 'text-emerald-500' : 'text-destructive'}`}>{holding.unrealizedPnL === null || holding.unrealizedPnLPercentage === null ? 'Chưa định giá' : `${pnlPositive ? '+' : ''}${currency(holding.unrealizedPnL)}`}</p></div>
                   <div><p className="text-xs text-muted-foreground">Giá vốn TB</p><p className="font-mono tabular-nums">{currency(holding.avgBuyPrice)}</p></div>
-                  <div className="col-span-2 flex justify-end gap-2 border-t pt-2">{onSelectCoin && <Button type="button" variant="ghost" size="icon" aria-label={`Xem biểu đồ ${holding.symbol}`} onClick={() => onSelectCoin(holding.coinId)}><ChartNoAxesCombined className="size-4" /></Button>}{onAddTransaction && <Button type="button" variant="outline" size="sm" aria-label={`Thêm giao dịch ${holding.symbol}`} onClick={() => onAddTransaction(holding)}><Plus className="size-3.5" />Giao dịch</Button>}<Button type="button" variant="ghost" size="icon" aria-label={`Sửa ghi chú ${holding.symbol}`} onClick={() => { setNoteTarget(holding); setNote(holding.notes ?? ''); setError(null); }}><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Xóa lịch sử ${holding.symbol}`} className="text-muted-foreground hover:text-destructive" onClick={() => { setDeleteTarget(holding); setError(null); }}><Trash2 className="size-4" /></Button></div>
+                  <div className="col-span-2 flex justify-end gap-2 border-t border-border/60 pt-2">{onSelectCoin && <Button type="button" variant="ghost" size="icon" aria-label={`Xem biểu đồ ${holding.symbol}`} onClick={() => onSelectCoin(holding.coinId)}><ChartNoAxesCombined className="size-4" /></Button>}{onAddTransaction && <Button type="button" variant="outline" size="sm" aria-label={`Thêm giao dịch ${holding.symbol}`} onClick={() => onAddTransaction(holding)}><Plus className="size-3.5" />Giao dịch</Button>}<Button type="button" variant="ghost" size="icon" aria-label={`Sửa ghi chú ${holding.symbol}`} onClick={() => { setNoteTarget(holding); setNote(holding.notes ?? ''); setError(null); }}><Pencil className="size-4" /></Button><Button type="button" variant="ghost" size="icon" aria-label={`Xóa lịch sử ${holding.symbol}`} className="text-muted-foreground hover:text-destructive" onClick={() => { setDeleteTarget(holding); setError(null); }}><Trash2 className="size-4" /></Button></div>
                 </article>;
               })}
           </div>

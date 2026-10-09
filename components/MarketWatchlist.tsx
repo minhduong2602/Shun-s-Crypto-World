@@ -268,7 +268,29 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
         </Alert>
       )}
 
-      <div className="overflow-x-auto">
+      <div className="grid gap-3 p-3 md:hidden" aria-label="Bảng giá thị trường dạng thẻ">
+        {filtered.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Không tìm thấy đồng tiền nào trong danh sách.</p> : filtered.map((item) => {
+          const is24hUp = item.priceChange24h >= 0;
+          const isFav = favorites.has(item.symbol);
+          return <article key={item.id} className="soft-list rounded-[1.35rem] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <button type="button" onClick={() => onSelectCoinForChart(item.symbol)} className="flex min-w-0 cursor-pointer items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Xem biểu đồ ${item.name}`}>
+                <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/10 font-mono text-xs font-bold text-primary">{item.symbol.slice(0, 4)}</span>
+                <span className="min-w-0"><span className="block truncate font-semibold">{item.name}</span><span className="text-xs text-muted-foreground">{item.symbol} · #{item.rank}</span></span>
+              </button>
+              <div className="shrink-0 text-right"><p className="font-semibold tabular-nums">{formatCurrency(item.priceUsd)}</p><p className={`mt-1 text-xs font-medium ${is24hUp ? 'text-emerald-600 dark:text-emerald-300' : 'text-destructive'}`}>{is24hUp ? '+' : ''}{item.priceChange24h.toFixed(2)}%</p></div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 border-t border-border/60 pt-3 text-xs"><div><p className="text-muted-foreground">Khối lượng 24h</p><p className="mt-1 font-medium tabular-nums">${(item.volume24hUsd / 1e6).toFixed(2)}M</p></div><div><p className="text-muted-foreground">Biên độ 24h</p><p className="mt-1 font-medium tabular-nums">${item.low24h.toLocaleString()} – ${item.high24h.toLocaleString()}</p></div></div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <Button variant="ghost" size="icon" onClick={(event) => toggleFavorite(item.symbol, event)} aria-label={isFav ? `Bỏ ${item.symbol} khỏi yêu thích` : `Thêm ${item.symbol} vào yêu thích`}><Star className={`size-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} /></Button>
+              <Button variant="secondary" size="sm" onClick={() => onOpenAddTransaction({ symbol: item.symbol, name: item.name, price: item.priceUsd })}><Plus className="size-3.5" />Giao dịch</Button>
+              {isFav && <Button variant="ghost" size="icon" onClick={(event) => handleDeleteTicker(item.symbol, event)} aria-label={`Xóa ${item.symbol} khỏi danh sách theo dõi`}><Trash2 className="size-4" /></Button>}
+            </div>
+          </article>;
+        })}
+      </div>
+
+      <div className="hidden overflow-x-auto md:block">
         <Table>
           <TableHeader>
             <TableRow>
