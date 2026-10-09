@@ -52,4 +52,14 @@ describe('POST /api/alerts/telegram/connect', () => {
     expect(response.status).toBe(502);
     expect(insertMock).not.toHaveBeenCalled();
   });
+
+  it('reports an unapplied Telegram pairing migration as a recoverable setup error', async () => {
+    deleteMock.mockResolvedValue({ error: { code: 'PGRST205', message: 'Could not find the table public.telegram_link_tokens' } });
+
+    const response = await POST();
+    const result = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(result.error).toContain('202610090012_telegram_bot_pairing.sql');
+  });
 });

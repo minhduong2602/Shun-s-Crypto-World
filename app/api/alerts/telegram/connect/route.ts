@@ -59,6 +59,19 @@ export async function POST() {
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để liên kết Telegram' }, { status: 401 });
     console.error('Telegram pairing setup failed:', error);
+    const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : '';
+    const message = error instanceof Error ? error.message : String(error);
+    if (code === '42P01' || code === 'PGRST205' || /telegram_link_tokens/i.test(message)) {
+      return NextResponse.json({
+        error: 'Supabase chưa có bảng ghép cặp Telegram. Hãy chạy migration supabase/migrations/202610090012_telegram_bot_pairing.sql rồi thử lại.',
+      }, { status: 503 });
+    }
+    if (code === '42501' || /permission denied/i.test(message)) {
+      return NextResponse.json({ error: 'Supabase từ chối quyền service-role khi tạo liên kết Telegram. Kiểm tra SUPABASE_SERVICE_ROLE_KEY trong Vercel.' }, { status: 503 });
+    }
+    if (/Missing or invalid .*environment variables/i.test(message)) {
+      return NextResponse.json({ error: 'Cấu hình môi trường server trên Vercel chưa đầy đủ hoặc không hợp lệ. Kiểm tra SUPABASE_SERVICE_ROLE_KEY và các biến Supabase server-side.' }, { status: 503 });
+    }
     return NextResponse.json({ error: 'Không thể tạo liên kết Telegram lúc này' }, { status: 500 });
   }
 }
