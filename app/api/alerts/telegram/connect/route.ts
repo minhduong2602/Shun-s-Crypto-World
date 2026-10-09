@@ -13,8 +13,18 @@ export async function POST() {
     if (!env.TELEGRAM_BOT_TOKEN) {
       return NextResponse.json({ error: 'Máy chủ chưa cấu hình TELEGRAM_BOT_TOKEN' }, { status: 503 });
     }
-    if (!env.TELEGRAM_WEBHOOK_SECRET || !env.APP_URL || env.APP_URL.includes('localhost')) {
-      return NextResponse.json({ error: 'Máy chủ cần cấu hình TELEGRAM_WEBHOOK_SECRET và APP_URL công khai trước khi liên kết bot.' }, { status: 503 });
+    const appUrl = env.APP_URL ? new URL(env.APP_URL) : null;
+    const isLocalHost = appUrl?.hostname === 'localhost'
+      || appUrl?.hostname === '127.0.0.1'
+      || appUrl?.hostname === '::1'
+      || appUrl?.hostname.endsWith('.local');
+    const invalidConfig: string[] = [];
+    if (!env.TELEGRAM_WEBHOOK_SECRET) invalidConfig.push('TELEGRAM_WEBHOOK_SECRET chưa có giá trị trong Vercel Production');
+    if (!appUrl || appUrl.protocol !== 'https:' || isLocalHost || appUrl.pathname !== '/' || appUrl.search || appUrl.hash) {
+      invalidConfig.push('APP_URL phải là origin HTTPS công khai, ví dụ https://shun-s-crypto-world.vercel.app (không thêm path)');
+    }
+    if (invalidConfig.length > 0) {
+      return NextResponse.json({ error: invalidConfig.join('. ') + '.' }, { status: 503 });
     }
 
     const meResponse = await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getMe`, {
@@ -30,7 +40,7 @@ export async function POST() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url: `${env.APP_URL.replace(/\/$/, '')}/api/telegram/webhook`,
+        url: `${appUrl!.origin}/api/telegram/webhook`,
         secret_token: env.TELEGRAM_WEBHOOK_SECRET,
         allowed_updates: ['message'],
       }),

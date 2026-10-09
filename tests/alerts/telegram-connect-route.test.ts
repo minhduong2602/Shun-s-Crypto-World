@@ -75,4 +75,16 @@ describe('POST /api/alerts/telegram/connect', () => {
     expect(result.error).toBe('Biến môi trường server thiếu hoặc không hợp lệ: SUPABASE_SERVICE_ROLE_KEY.');
     expect(result.error).not.toContain('service-role-key');
   });
+
+  it('identifies a non-public APP_URL before contacting Telegram', async () => {
+    getServerEnvMock.mockReturnValue({ TELEGRAM_BOT_TOKEN: 'bot-token', TELEGRAM_WEBHOOK_SECRET: 'webhook_secret', APP_URL: 'http://localhost:3000' });
+
+    const response = await POST();
+    const result = await response.json();
+
+    expect(response.status).toBe(503);
+    expect(result.error).toContain('APP_URL');
+    expect(result.error).toContain('https://');
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });
