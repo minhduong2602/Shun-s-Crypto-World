@@ -24,10 +24,10 @@ export function AppHeader({ title, baseCurrency, onBaseCurrencyChange, onMenu, o
   };
 
   return <header className="glass-nav sticky top-2 z-30 mx-3 mt-2 flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-[1.5rem] px-2.5 py-2 sm:px-4 md:top-4 md:mx-0 md:mt-0 md:h-16 md:flex-nowrap md:px-5 md:py-0">
-    <div className="flex min-w-0 items-center gap-2">
-      <Button variant="ghost" size="icon" className="size-11 shrink-0 md:hidden" aria-label="Mở điều hướng" onClick={onMenu}><Menu className="size-5" /></Button>
-      <div className="min-w-0"><p className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground sm:block">Tổng quan cá nhân</p><h1 className="truncate text-base font-semibold tracking-tight md:text-lg">{title}</h1></div>
-    </div>
+    {/* <div className="flex min-w-0 items-center gap-2"> */}
+      {/* <Button variant="ghost" size="icon" className="size-11 shrink-0 md:hidden" aria-label="Mở điều hướng" onClick={onMenu}><Menu className="size-5" /></Button> */}
+      {/* <div className="min-w-0"><p className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground sm:block">Tổng quan cá nhân</p><h1 className="truncate text-base font-semibold tracking-tight md:text-lg">{title}</h1></div> */}
+    {/* </div> */}
     <div className="flex w-full min-w-0 items-center justify-between gap-1 md:ml-auto md:w-auto md:justify-end md:gap-2">
       {baseCurrency && onBaseCurrencyChange && <Tabs value={baseCurrency} onValueChange={(value) => onBaseCurrencyChange(value as 'USD' | 'VND')}>
         <TabsList aria-label="Đơn vị tiền tệ hiển thị" className="h-11 shrink-0 sm:h-9">

@@ -13,7 +13,7 @@ const buttonVariants = cva(
         ghost: 'hover:bg-accent hover:text-accent-foreground',
         destructive: 'bg-destructive text-white hover:opacity-90',
       },
-      size: { default: 'h-11 px-4 py-2 sm:h-10', sm: 'h-11 rounded-xl px-3 text-sm sm:h-9 sm:text-xs', lg: 'h-12 rounded-xl px-8 sm:h-11', icon: 'size-11 rounded-xl sm:size-10' },
+      size: { default: 'h-11 px-4 py-2 sm:h-10', sm: 'h-8 rounded-xl px-3 text-sm sm:h-8 sm:text-xs', lg: 'h-12 rounded-xl px-8 sm:h-11', icon: 'size-11 rounded-xl sm:size-10' },
     },
     defaultVariants: { variant: 'default', size: 'default' },
   }

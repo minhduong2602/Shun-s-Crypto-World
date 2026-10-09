@@ -81,7 +81,7 @@ body { min-height: 100vh; overflow-x: clip; overscroll-behavior-y: contain; back
 
 .glass-panel, .glass-nav { border: 1px solid oklch(1 0 0 / 68%); box-shadow: 0 20px 55px oklch(0.38 0.05 285 / 13%), inset 0 1px 0 oklch(1 0 0 / 80%); transform: translateZ(0); }
 .glass-panel { background: oklch(1 0.006 285 / 75%); }
-.glass-nav { background: oklch(0.99 0.008 285 / 78%); }
+.glass-nav { background: oklch(98.922% 0.00539 285.996 / 0.25); }
 .glass-metric { border: 1px solid oklch(1 0 0 / 72%); background: linear-gradient(145deg, oklch(1 0.006 285 / 86%), oklch(0.955 0.025 285 / 86%)); box-shadow: -8px -8px 20px oklch(1 0 0 / 60%), 10px 14px 32px oklch(0.45 0.06 285 / 12%); transform: translateZ(0); }
 .data-surface { border: 1px solid oklch(1 0 0 / 78%); background: oklch(0.99 0.006 285 / 90%); box-shadow: 0 14px 40px oklch(0.42 0.04 285 / 10%), inset 0 1px 0 oklch(1 0 0 / 80%); }
 .portfolio-hero { position: relative; isolation: isolate; overflow: hidden; background: linear-gradient(145deg, oklch(1 0.006 285 / 94%), oklch(0.93 0.04 285 / 90%)); }

@@ -213,17 +213,16 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
               {marketStatus.label}
             </Badge>
           </div>
-          <CardDescription>Giá giao dịch và khối lượng 24h trực tiếp từ sàn. Các chỉ số không có nguồn dữ liệu sẽ để trống.</CardDescription>
           {lastMarketUpdateAt && <p className="mt-1 text-xs text-muted-foreground" aria-hidden="true">Cập nhật lúc {new Date(lastMarketUpdateAt).toLocaleTimeString('vi-VN')}</p>}
         </div>
 
         <div className="flex items-center space-x-2.5 w-full sm:w-auto">
           {/* Favorites toggle tabs */}
-          <div className="flex items-center gap-1 rounded-md border bg-muted p-1 text-xs">
+          <div className="flex items-center gap-1 rounded-lg border bg-muted p-1 text-xs">
             <Button variant={filterView === 'ALL' ? 'default' : 'ghost'} size="sm"
               onClick={() => setFilterView('ALL')}
             >
-              Tất cả ({tickers.length})
+              All ({tickers.length})
             </Button>
             <Button variant={filterView === 'FAVORITES' ? 'secondary' : 'ghost'} size="sm"
               onClick={() => setFilterView('FAVORITES')}

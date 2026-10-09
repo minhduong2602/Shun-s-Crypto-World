@@ -17,7 +17,6 @@ type BlockscoutTokenPage = {
 
 const BLOCKSCOUT_API: Partial<Record<ChainType, string>> = {
   ETH: 'https://eth.blockscout.com/api/v2',
-  BSC: 'https://bsc.blockscout.com/api/v2',
   POLYGON: 'https://polygon.blockscout.com/api/v2',
   ARBITRUM: 'https://arbitrum.blockscout.com/api/v2',
   BASE: 'https://base.blockscout.com/api/v2',
@@ -32,6 +31,8 @@ const EVM_NATIVE: Partial<Record<ChainType, { symbol: string; name: string }>> =
 const SOLANA_RPCS = ['https://api.mainnet-beta.solana.com', 'https://solana-rpc.publicnode.com'];
 const ROUTESCAN_API = 'https://api.routescan.io/v2/network/mainnet/evm/56';
 const BASE_ROUTESCAN_API = 'https://api.routescan.io/v2/network/mainnet/evm/8453';
+const BINPLORER_API = 'https://api.binplorer.com';
+const ETHERSCAN_V2_API = 'https://api.etherscan.io/v2/api';
 const BSC_RPCS = ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.bnbchain.org', 'https://bsc-dataseed-public.bnbchain.org'];
 const SOLANA_TOKEN_PROGRAMS = [
   'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
@@ -43,6 +44,7 @@ const SOLANA_METADATA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const solanaMetadataCache = new Map<string, { metadata: ReturnType<typeof parseMetaplexTokenMetadata>; expiresAt: number }>();
 const MAX_BLOCKSCOUT_TOKEN_PAGES = 100;
 const MAX_ROUTESCAN_TOKEN_PAGES = 100;
+const MAX_ETHERSCAN_TOKEN_PAGES = 100;
 
 export class PublicWalletIndexer implements WalletIndexer {
   constructor(
@@ -53,14 +55,9 @@ export class PublicWalletIndexer implements WalletIndexer {
   async scan({ chain, address }: WalletScanRequest): Promise<IndexedWalletAsset[]> {
     if (chain === 'SOL') return this.scanSolana(address);
     if (chain === 'BTC') return this.scanBitcoin(address);
+    if (chain === 'BSC') return this.scanBsc(address);
     const baseUrl = BLOCKSCOUT_API[chain];
     if (!baseUrl) throw new Error(`Chưa cấu hình nguồn quét token cho mạng ${chain}.`);
-    if (chain === 'BSC') {
-      return this.scanEvmWithFallback(chain, address,
-        () => this.scanRoutescanEvm('BSC', address, ROUTESCAN_API),
-        () => this.scanBlockscout(chain, address, baseUrl),
-      );
-    }
     if (chain === 'BASE') {
       return this.scanEvmWithFallback(chain, address,
         () => this.scanRoutescanEvm('BASE', address, BASE_ROUTESCAN_API),
@@ -104,6 +101,32 @@ export class PublicWalletIndexer implements WalletIndexer {
 
   private errorMessage(error: unknown) {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  private async scanBsc(address: string): Promise<IndexedWalletAsset[]> {
+    const providers: Array<{ name: string; scan: () => Promise<IndexedWalletAsset[]> }> = [
+      { name: 'Binplorer', scan: () => this.scanBinplorerBsc(address) },
+    ];
+    if (process.env.ETHERSCAN_API_KEY?.trim()) {
+      providers.push({ name: 'Etherscan V2', scan: () => this.scanEtherscanBsc(address) });
+    }
+    providers.push({ name: 'RouteScan', scan: () => this.scanRoutescanEvm('BSC', address, ROUTESCAN_API) });
+
+    const errors: string[] = [];
+    for (let index = 0; index < providers.length; index += 1) {
+      const provider = providers[index];
+      try {
+        const assets = await provider.scan();
+        // An empty primary result is a valid empty wallet. Once the primary
+        // provider has failed, an empty fallback is not enough evidence to
+        // replace a previously known-good token snapshot.
+        if (index === 0 || assets.length > 0) return assets;
+        errors.push(`${provider.name}: không tìm thấy tài sản để xác nhận kết quả`);
+      } catch (error) {
+        errors.push(`${provider.name}: ${this.errorMessage(error)}`);
+      }
+    }
+    throw new Error(`Không quét được ví BSC. ${errors.join('. ')}.`);
   }
 
   private async fetchJson(url: string, init?: RequestInit) {
@@ -232,6 +255,140 @@ export class PublicWalletIndexer implements WalletIndexer {
       }
     }
     throw new Error(`Không lấy được native balance ${chain}: ${String(lastError ?? 'RPC không phản hồi')}`);
+  }
+
+  /**
+   * BSC does not have a public Blockscout instance. Binplorer provides the
+   * address token index while balances for the native asset still come from a
+   * BSC JSON-RPC node, so explorer data cannot overwrite the on-chain BNB
+   * balance.
+   */
+  private async scanBinplorerBsc(address: string): Promise<IndexedWalletAsset[]> {
+    const url = new URL(`${BINPLORER_API}/getAddressInfo/${encodeURIComponent(address)}`);
+    url.searchParams.set('apiKey', process.env.BINPLORER_API_KEY?.trim() || 'freekey');
+    const response = await this.fetchJson(url.toString()) as {
+      error?: { message?: string };
+      tokens?: Array<{
+        rawBalance?: string;
+        tokenInfo?: {
+          address?: string;
+          name?: string | null;
+          symbol?: string | null;
+          decimals?: string | number | null;
+          price?: { rate?: number | string; diff?: number | string } | null;
+        } | null;
+      }>;
+    };
+    if (response.error) throw new Error(response.error.message || 'Binplorer trả lỗi không xác định.');
+    if (response.tokens !== undefined && !Array.isArray(response.tokens)) {
+      throw new Error('Binplorer trả danh sách token không hợp lệ.');
+    }
+
+    const assets: IndexedWalletAsset[] = [];
+    const nativeBalance = await this.readEvmNativeBalance('BSC', address);
+    if (BigInt(nativeBalance) > 0n) {
+      assets.push({
+        chain: 'BSC', assetAddress: 'native', isNative: true,
+        symbol: 'BNB', name: 'BNB', decimals: 18, rawBalance: nativeBalance,
+        ...await this.withSymbolPrice('BNB'),
+      });
+    }
+
+    for (const entry of response.tokens ?? []) {
+      const token = entry.tokenInfo;
+      if (!token?.address || typeof entry.rawBalance !== 'string' || !/^\d+$/.test(entry.rawBalance)) {
+        throw new Error('Binplorer trả dữ liệu số dư token không hợp lệ.');
+      }
+      if (BigInt(entry.rawBalance) === 0n) continue;
+      if (token.decimals === null || token.decimals === undefined || token.decimals === '') {
+        throw new Error('Binplorer trả decimals không hợp lệ cho token có số dư.');
+      }
+      const decimals = Number(token.decimals);
+      if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) {
+        throw new Error('Binplorer trả decimals không hợp lệ cho token có số dư.');
+      }
+      const symbol = token.symbol?.trim().toUpperCase() || token.address.slice(0, 8).toUpperCase();
+      const price = Number(token.price?.rate);
+      const priceChange24h = Number(token.price?.diff);
+      assets.push({
+        chain: 'BSC',
+        assetAddress: token.address.toLowerCase(),
+        isNative: false,
+        symbol,
+        name: token.name?.trim() || symbol,
+        decimals,
+        rawBalance: entry.rawBalance,
+        ...(Number.isFinite(price) && price > 0 ? { priceUsd: price } : {}),
+        ...(Number.isFinite(priceChange24h) ? { priceChange24h } : {}),
+      });
+    }
+    return this.withContractPrices('BSC', assets);
+  }
+
+  private async scanEtherscanBsc(address: string): Promise<IndexedWalletAsset[]> {
+    const apiKey = process.env.ETHERSCAN_API_KEY?.trim();
+    if (!apiKey) throw new Error('Chưa cấu hình ETHERSCAN_API_KEY.');
+    const tokenRows: Array<{
+      TokenAddress?: string;
+      TokenName?: string;
+      TokenSymbol?: string;
+      TokenQuantity?: string;
+      TokenDivisor?: string;
+      TokenPriceUSD?: string;
+    }> = [];
+    const offset = 100;
+    for (let page = 1; page <= MAX_ETHERSCAN_TOKEN_PAGES; page += 1) {
+      const url = new URL(ETHERSCAN_V2_API);
+      url.searchParams.set('chainid', '56');
+      url.searchParams.set('module', 'account');
+      url.searchParams.set('action', 'addresstokenbalance');
+      url.searchParams.set('address', address);
+      url.searchParams.set('page', String(page));
+      url.searchParams.set('offset', String(offset));
+      url.searchParams.set('apikey', apiKey);
+      const response = await this.fetchJson(url.toString()) as {
+        status?: string;
+        message?: string;
+        result?: unknown;
+      };
+      if (!Array.isArray(response.result)) {
+        throw new Error(typeof response.result === 'string' ? response.result : response.message || 'Etherscan trả dữ liệu không hợp lệ.');
+      }
+      const rows = response.result as typeof tokenRows;
+      tokenRows.push(...rows);
+      if (rows.length < offset) break;
+      if (page === MAX_ETHERSCAN_TOKEN_PAGES) {
+        throw new Error(`Etherscan vượt quá giới hạn ${MAX_ETHERSCAN_TOKEN_PAGES} trang token.`);
+      }
+    }
+
+    const assets: IndexedWalletAsset[] = [];
+    const nativeBalance = await this.readEvmNativeBalance('BSC', address);
+    if (BigInt(nativeBalance) > 0n) {
+      assets.push({
+        chain: 'BSC', assetAddress: 'native', isNative: true,
+        symbol: 'BNB', name: 'BNB', decimals: 18, rawBalance: nativeBalance,
+        ...await this.withSymbolPrice('BNB'),
+      });
+    }
+    for (const token of tokenRows) {
+      if (!token.TokenAddress || !token.TokenQuantity || !/^\d+$/.test(token.TokenQuantity)) {
+        throw new Error('Etherscan trả dữ liệu số dư token không hợp lệ.');
+      }
+      if (BigInt(token.TokenQuantity) === 0n) continue;
+      const decimals = Number(token.TokenDivisor);
+      if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) {
+        throw new Error('Etherscan trả decimals không hợp lệ cho token có số dư.');
+      }
+      const symbol = token.TokenSymbol?.trim().toUpperCase() || token.TokenAddress.slice(0, 8).toUpperCase();
+      const price = Number(token.TokenPriceUSD);
+      assets.push({
+        chain: 'BSC', assetAddress: token.TokenAddress.toLowerCase(), isNative: false,
+        symbol, name: token.TokenName?.trim() || symbol, decimals, rawBalance: token.TokenQuantity,
+        ...(Number.isFinite(price) && price > 0 ? { priceUsd: price } : {}),
+      });
+    }
+    return this.withContractPrices('BSC', assets);
   }
 
   private async scanRoutescanEvm(chain: 'BSC' | 'BASE', address: string, apiBase: string): Promise<IndexedWalletAsset[]> {

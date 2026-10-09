@@ -144,22 +144,19 @@ describe('PublicWalletIndexer', () => {
     ]);
   });
 
-  it('scans all BSC ERC-20 holdings across keyless Routescan pages', async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (String(input).includes('bsc-dataseed')) {
-        return Response.json({ result: '0x0' });
-      }
-      const url = new URL(String(input));
-      if (url.searchParams.get('next') === 'cursor-2') {
+  it('scans BSC BEP-20 holdings through Binplorer and verifies native BNB through RPC', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0xde0b6b3a7640000' });
+      if (url.includes('api.binplorer.com')) {
         return Response.json({
-          items: [{ tokenAddress: '0xTokenB', tokenName: 'Token B', tokenSymbol: 'TB', tokenDecimals: 8, tokenQuantity: '250' }],
-          link: {},
+          tokens: [
+            { rawBalance: '1000000000000000000', tokenInfo: { address: '0xTokenA', name: 'Token A', symbol: 'TA', decimals: '18', price: { rate: 1.25, diff: 2 } } },
+            { rawBalance: '250', tokenInfo: { address: '0xTokenB', name: 'Token B', symbol: 'TB', decimals: 8 } },
+          ],
         });
       }
-      return Response.json({
-        items: [{ tokenAddress: '0xTokenA', tokenName: 'Token A', tokenSymbol: 'TA', tokenDecimals: 18, tokenQuantity: '1000000000000000000' }],
-        link: { nextToken: 'cursor-2' },
-      });
+      throw new Error(`Unexpected URL: ${url}`);
     });
 
     const assets = await new PublicWalletIndexer(fetcher).scan({ chain: 'BSC', address: '0xWallet' });
@@ -167,20 +164,22 @@ describe('PublicWalletIndexer', () => {
     expect(assets).toEqual(expect.arrayContaining([
       expect.objectContaining({ chain: 'BSC', assetAddress: '0xtokena', rawBalance: '1000000000000000000', decimals: 18 }),
       expect.objectContaining({ chain: 'BSC', assetAddress: '0xtokenb', rawBalance: '250', decimals: 8 }),
+      expect.objectContaining({ chain: 'BSC', assetAddress: 'native', rawBalance: '1000000000000000000' }),
     ]));
-    expect(fetcher.mock.calls.some(([input]) => String(input).includes('addresstokenbalance'))).toBe(false);
-    expect(fetcher.mock.calls.some(([input]) => new URL(String(input)).searchParams.get('next') === 'cursor-2')).toBe(true);
+    expect(fetcher.mock.calls.some(([input]) => String(input).includes('api.binplorer.com/getAddressInfo/0xWallet'))).toBe(true);
+    expect(fetcher.mock.calls.some(([input]) => String(input).includes('bsc.blockscout.com'))).toBe(false);
   });
 
-  it('retries BSC token discovery with Blockscout when Routescan is unavailable', async () => {
+  it('retries BSC token discovery with Routescan when Binplorer is unavailable', async () => {
+    vi.stubEnv('ETHERSCAN_API_KEY', '');
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
-      if (url.includes('bsc-dataseed')) return Response.json({ result: '0x0' });
-      if (url.includes('api.routescan.io')) return new Response('temporarily unavailable', { status: 503 });
-      if (url.includes('bsc.blockscout.com')) {
+      if (url.includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0x0' });
+      if (url.includes('api.binplorer.com')) return new Response('temporarily unavailable', { status: 503 });
+      if (url.includes('api.routescan.io')) {
         return Response.json({
-          items: [{ value: '1250000', token: { type: 'ERC-20', address: '0xTokenA', name: 'Token A', symbol: 'TA', decimals: '6' } }],
-          next_page_params: null,
+          items: [{ tokenAddress: '0xTokenA', tokenName: 'Token A', tokenSymbol: 'TA', tokenDecimals: 6, tokenQuantity: '1250000' }],
+          link: {},
         });
       }
       throw new Error(`Unexpected URL: ${url}`);
@@ -189,13 +188,40 @@ describe('PublicWalletIndexer', () => {
     const assets = await new PublicWalletIndexer(fetcher, async () => null).scan({ chain: 'BSC', address: '0xWallet' });
 
     expect(assets).toContainEqual(expect.objectContaining({ chain: 'BSC', assetAddress: '0xtokena', rawBalance: '1250000', decimals: 6 }));
-    expect(fetcher.mock.calls.some(([input]) => String(input).includes('bsc.blockscout.com'))).toBe(true);
+    expect(fetcher.mock.calls.some(([input]) => String(input).includes('api.routescan.io'))).toBe(true);
+  });
+
+  it('uses authenticated Etherscan V2 as the BSC fallback when configured', async () => {
+    vi.stubEnv('ETHERSCAN_API_KEY', 'etherscan-key');
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('api.binplorer.com')) return new Response('temporarily unavailable', { status: 503 });
+      if (url.includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0x0' });
+      if (url.includes('api.etherscan.io')) {
+        return Response.json({
+          status: '1', message: 'OK',
+          result: [{ TokenAddress: '0xTokenA', TokenName: 'Token A', TokenSymbol: 'TA', TokenQuantity: '1250000', TokenDivisor: '6', TokenPriceUSD: '1.1' }],
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const assets = await new PublicWalletIndexer(fetcher, async () => null).scan({ chain: 'BSC', address: '0xWallet' });
+
+    expect(assets).toContainEqual(expect.objectContaining({ chain: 'BSC', assetAddress: '0xtokena', rawBalance: '1250000', decimals: 6, priceUsd: 1.1 }));
+    const etherscanUrl = new URL(String(fetcher.mock.calls.find(([input]) => String(input).includes('api.etherscan.io'))?.[0]));
+    expect(etherscanUrl.searchParams.get('chainid')).toBe('56');
+    expect(etherscanUrl.searchParams.get('action')).toBe('addresstokenbalance');
+    expect(etherscanUrl.searchParams.get('apikey')).toBe('etherscan-key');
+    expect(fetcher.mock.calls.some(([input]) => String(input).includes('api.routescan.io'))).toBe(false);
   });
 
   it('fails BSC scans when Routescan repeats a pagination cursor', async () => {
+    vi.stubEnv('ETHERSCAN_API_KEY', '');
     let cursorRequests = 0;
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes('bsc-dataseed')) return Response.json({ result: '0x0' });
+      if (String(input).includes('api.binplorer.com')) return new Response('temporarily unavailable', { status: 503 });
+      if (String(input).includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0x0' });
       const url = new URL(String(input));
       if (url.searchParams.get('next') === 'cursor-2') {
         cursorRequests += 1;
@@ -210,9 +236,11 @@ describe('PublicWalletIndexer', () => {
   });
 
   it('fails Routescan scans that exceed the pagination safety limit', async () => {
+    vi.stubEnv('ETHERSCAN_API_KEY', '');
     let pageCount = 0;
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes('bsc-dataseed')) return Response.json({ result: '0x0' });
+      if (String(input).includes('api.binplorer.com')) return new Response('temporarily unavailable', { status: 503 });
+      if (String(input).includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0x0' });
       const url = new URL(String(input));
       const cursor = Number(url.searchParams.get('next') ?? '0');
       pageCount += 1;
@@ -262,8 +290,10 @@ describe('PublicWalletIndexer', () => {
   });
 
   it('fails BSC scans on an invalid Routescan response instead of treating the wallet as empty', async () => {
+    vi.stubEnv('ETHERSCAN_API_KEY', '');
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes('bsc-dataseed')) return Response.json({ result: '0x0' });
+      if (String(input).includes('api.binplorer.com')) return new Response('temporarily unavailable', { status: 503 });
+      if (String(input).includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0x0' });
       return Response.json({ items: 'invalid' });
     });
 
@@ -272,8 +302,10 @@ describe('PublicWalletIndexer', () => {
   });
 
   it('fails a Routescan scan when a non-zero token is missing valid decimals', async () => {
+    vi.stubEnv('ETHERSCAN_API_KEY', '');
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      if (String(input).includes('bsc-dataseed')) return Response.json({ result: '0x0' });
+      if (String(input).includes('api.binplorer.com')) return new Response('temporarily unavailable', { status: 503 });
+      if (String(input).includes('bsc-rpc.publicnode.com')) return Response.json({ result: '0x0' });
       return Response.json({
         items: [{ tokenAddress: '0xTokenA', tokenName: 'Token A', tokenSymbol: 'TA', tokenQuantity: '100', tokenDecimals: null }],
         link: {},
