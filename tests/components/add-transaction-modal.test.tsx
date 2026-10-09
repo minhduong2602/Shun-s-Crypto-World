@@ -41,12 +41,25 @@ describe('AddTransactionModal', () => {
     const search = await screen.findByRole('combobox', { name: 'Tìm hoặc nhập ticker' });
     fireEvent.change(search, { target: { value: 'DOGE' } });
 
-    const suggestion = await screen.findByRole('option', { name: /DOGE Dogecoin/ });
+    const suggestion = await screen.findByRole('button', { name: /DOGE Dogecoin/ });
     fireEvent.keyDown(search, { key: 'ArrowDown' });
     expect(suggestion).toBeInTheDocument();
     fireEvent.keyDown(search, { key: 'Enter' });
 
     await waitFor(() => expect(screen.getByText('(Dogecoin)')).toBeInTheDocument());
-    expect(screen.queryByRole('listbox', { name: 'Ticker suggestions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('list', { name: 'Ticker suggestions' })).not.toBeInTheDocument();
+  });
+
+  it('selects a ticker suggestion when tapped', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({
+      results: [{ symbol: 'SOL', name: 'Solana', priceUsd: 150, change24h: 2.5 }],
+    })));
+
+    render(<AddTransactionModal isOpen onClose={vi.fn()} onSuccess={vi.fn()} />);
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Tìm hoặc nhập ticker' }), { target: { value: 'SOL' } });
+    fireEvent.click(await screen.findByRole('button', { name: /SOL Solana/ }));
+
+    await waitFor(() => expect(screen.getByText('(Solana)')).toBeInTheDocument());
+    expect(screen.queryByRole('list', { name: 'Ticker suggestions' })).not.toBeInTheDocument();
   });
 });

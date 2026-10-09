@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   PlusCircle,
   RefreshCw,
@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 export interface PreselectedCoinInfo {
   symbol: string;
@@ -69,6 +68,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     Array<{ id?: string; symbol: string; name: string; priceUsd: number | null; change24h: number | null; source?: string }>
   >([]);
   const [isSearching, setIsSearching] = useState(false);
+  const firstTickerSuggestionRef = useRef<HTMLButtonElement>(null);
 
   // Live price fetcher for any selected symbol
   const fetchLivePrice = useCallback(async (ticker: string) => {
@@ -226,60 +226,63 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
         {/* Ticker Selector & Search Any Coin */}
         <div>
           <div className="flex items-center justify-between gap-2 mb-1">
-            <Label>Tìm hoặc nhập ticker</Label>
+            <Label htmlFor="transaction-ticker">Tìm hoặc nhập ticker</Label>
             <div className="flex min-w-0 items-center space-x-1.5">
               <span className="font-mono text-emerald-400 font-bold text-xs">{symbol}</span>
               <span className="truncate text-slate-400 text-[11px]">({coinName})</span>
             </div>
           </div>
 
-          <Command label="Tìm hoặc nhập ticker" shouldFilter={false} className="relative overflow-visible rounded-xl border border-border bg-background">
-            <CommandInput
+          <div className="relative">
+            <Input
+              id="transaction-ticker"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={Boolean(searchQuery.trim())}
+              aria-controls={searchQuery.trim() ? 'transaction-ticker-suggestions' : undefined}
               value={searchQuery}
-              onValueChange={(value) => setSearchQuery(value.toUpperCase())}
+              onChange={(event) => setSearchQuery(event.target.value.toUpperCase())}
+              onKeyDown={(event) => {
+                if (event.key === 'ArrowDown' && visibleResults.length > 0) {
+                  event.preventDefault();
+                  firstTickerSuggestionRef.current?.focus();
+                }
+                if (event.key === 'Enter' && visibleResults[0]) {
+                  event.preventDefault();
+                  const first = visibleResults[0];
+                  handleSelectTicker(first.symbol, first.name, first.priceUsd ?? undefined);
+                }
+                if (event.key === 'Escape') setSearchQuery('');
+              }}
               placeholder="Gõ mã Ticker (VD: PEPE, TAO, DOGE, SUI, KAS, WIF...)"
               className="font-mono"
             />
             {searchQuery.trim() && (
-              <CommandList
-                aria-label="Ticker suggestions"
-                className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 rounded-xl border border-border bg-popover shadow-2xl"
-              >
-                {isSearching ? (
-                  <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-                    <RefreshCw className="size-4 animate-spin" /> Đang tìm ticker...
-                  </div>
-                ) : visibleResults.length === 0 ? (
-                  <CommandEmpty>Không tìm thấy ticker phù hợp.</CommandEmpty>
-                ) : visibleResults.map((item) => (
-                  <CommandItem
-                    key={`${item.id ?? item.symbol}:${item.name}`}
-                    value={`${item.symbol} ${item.name}`}
-                    onSelect={() => handleSelectTicker(item.symbol, item.name, item.priceUsd ?? undefined)}
-                    onPointerDown={(event) => {
-                      // Keep the input focused while committing the option. Without
-                      // this, mobile browsers can dismiss the result layer before
-                      // cmdk emits its select event.
-                      event.preventDefault();
-                      handleSelectTicker(item.symbol, item.name, item.priceUsd ?? undefined);
-                    }}
-                    className="justify-between gap-4 px-3 py-2"
-                  >
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 font-mono font-bold text-primary">{item.symbol}</span>
-                      <span className="max-w-[140px] truncate text-[11px] text-muted-foreground">{item.name}</span>
-                    </div>
-                    <div className="shrink-0 text-right font-mono">
-                      <div className="font-semibold text-foreground">{item.priceUsd === null ? 'Chưa có giá' : `$${item.priceUsd < 1 ? item.priceUsd.toFixed(6) : item.priceUsd.toLocaleString()}`}</div>
-                      <div className={`text-[10px] ${item.change24h === null ? 'text-muted-foreground' : item.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {item.change24h === null ? '—' : `${item.change24h >= 0 ? '+' : ''}${item.change24h}%`}
-                      </div>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandList>
+              <ul id="transaction-ticker-suggestions" aria-label="Ticker suggestions" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-56 overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-2xl">
+                {isSearching ? <li className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground"><RefreshCw className="size-4 animate-spin" /> Đang tìm ticker...</li>
+                  : visibleResults.length === 0 ? <li className="py-6 text-center text-sm text-muted-foreground">Không tìm thấy ticker phù hợp.</li>
+                  : visibleResults.map((item, index) => (
+                    <li key={`${item.id ?? item.symbol}:${item.name}`}>
+                      <button
+                        ref={index === 0 ? firstTickerSuggestionRef : undefined}
+                        type="button"
+                        onClick={() => handleSelectTicker(item.symbol, item.name, item.priceUsd ?? undefined)}
+                        className="flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-left hover:bg-accent focus-visible:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 font-mono font-bold text-primary">{item.symbol}</span>
+                          <span className="max-w-[140px] truncate text-[11px] text-muted-foreground">{item.name}</span>
+                        </span>
+                        <span className="shrink-0 text-right font-mono">
+                          <span className="block font-semibold text-foreground">{item.priceUsd === null ? 'Chưa có giá' : `$${item.priceUsd < 1 ? item.priceUsd.toFixed(6) : item.priceUsd.toLocaleString()}`}</span>
+                          <span className={`block text-[10px] ${item.change24h === null ? 'text-muted-foreground' : item.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{item.change24h === null ? '—' : `${item.change24h >= 0 ? '+' : ''}${item.change24h}%`}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
             )}
-          </Command>
+          </div>
 
           {/* Quick Popular Ticker Tags */}
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
