@@ -172,6 +172,26 @@ describe('PublicWalletIndexer', () => {
     expect(fetcher.mock.calls.some(([input]) => new URL(String(input)).searchParams.get('next') === 'cursor-2')).toBe(true);
   });
 
+  it('retries BSC token discovery with Blockscout when Routescan is unavailable', async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('bsc-dataseed')) return Response.json({ result: '0x0' });
+      if (url.includes('api.routescan.io')) return new Response('temporarily unavailable', { status: 503 });
+      if (url.includes('bsc.blockscout.com')) {
+        return Response.json({
+          items: [{ value: '1250000', token: { type: 'ERC-20', address: '0xTokenA', name: 'Token A', symbol: 'TA', decimals: '6' } }],
+          next_page_params: null,
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const assets = await new PublicWalletIndexer(fetcher, async () => null).scan({ chain: 'BSC', address: '0xWallet' });
+
+    expect(assets).toContainEqual(expect.objectContaining({ chain: 'BSC', assetAddress: '0xtokena', rawBalance: '1250000', decimals: 6 }));
+    expect(fetcher.mock.calls.some(([input]) => String(input).includes('bsc.blockscout.com'))).toBe(true);
+  });
+
   it('fails BSC scans when Routescan repeats a pagination cursor', async () => {
     let cursorRequests = 0;
     const fetcher = vi.fn(async (input: RequestInfo | URL) => {

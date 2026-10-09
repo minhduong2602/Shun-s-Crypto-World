@@ -46,6 +46,10 @@ export async function POST(
     });
   } catch (error) {
     if (error instanceof UnauthorizedError) return NextResponse.json({ error: 'Cần đăng nhập để đồng bộ ví' }, { status: 401 });
-    return NextResponse.json({ error: 'Lỗi đồng bộ ví on-chain: ' + String(error) }, { status: 500 });
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Wallet on-chain sync failed', { message: error instanceof Error ? error.message : String(error) });
+    return NextResponse.json({
+      error: `Không thể đồng bộ ví on-chain: ${message}. Dữ liệu trước đó (nếu có) vẫn được giữ nguyên. Vui lòng thử lại sau ít phút.`,
+    }, { status: 502 });
   }
 }

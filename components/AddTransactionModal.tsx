@@ -256,6 +256,13 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                     key={`${item.id ?? item.symbol}:${item.name}`}
                     value={`${item.symbol} ${item.name}`}
                     onSelect={() => handleSelectTicker(item.symbol, item.name, item.priceUsd ?? undefined)}
+                    onPointerDown={(event) => {
+                      // Keep the input focused while committing the option. Without
+                      // this, mobile browsers can dismiss the result layer before
+                      // cmdk emits its select event.
+                      event.preventDefault();
+                      handleSelectTicker(item.symbol, item.name, item.priceUsd ?? undefined);
+                    }}
                     className="justify-between gap-4 px-3 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">

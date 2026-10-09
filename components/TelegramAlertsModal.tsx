@@ -398,7 +398,7 @@ export const TelegramAlertsModal: React.FC<TelegramAlertsModalProps> = ({
                     <CommandList aria-label="Gợi ý ticker cảnh báo" className="absolute left-0 right-0 top-full z-30 mt-1 max-h-56 rounded-md border border-border bg-popover shadow-xl">
                       {isSearchingTicker ? <div className="p-3 text-center text-xs text-muted-foreground">Đang tìm và lấy giá hiện tại…</div>
                         : tickerResults.length === 0 ? <CommandEmpty>Không tìm thấy ticker phù hợp.</CommandEmpty>
-                        : tickerResults.map((ticker) => <CommandItem key={`${ticker.id ?? ticker.symbol}:${ticker.name}`} value={`${ticker.symbol} ${ticker.name}`} onSelect={() => handleSelectTicker(ticker)} className="justify-between gap-3 px-3 py-2">
+                        : tickerResults.map((ticker) => <CommandItem key={`${ticker.id ?? ticker.symbol}:${ticker.name}`} value={`${ticker.symbol} ${ticker.name}`} onSelect={() => handleSelectTicker(ticker)} onPointerDown={(event) => { event.preventDefault(); handleSelectTicker(ticker); }} className="justify-between gap-3 px-3 py-2">
                           <span className="min-w-0 truncate"><b className="font-mono text-primary">{ticker.symbol}</b> <span className="text-xs text-muted-foreground">{ticker.name}</span></span>
                           <span className="shrink-0 text-right font-mono text-xs">{ticker.priceUsd === null ? 'Chưa có giá' : `$${ticker.priceUsd < 1 ? ticker.priceUsd.toFixed(6) : ticker.priceUsd.toLocaleString()}`}</span>
                         </CommandItem>)}

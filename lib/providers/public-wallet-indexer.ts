@@ -17,8 +17,10 @@ type BlockscoutTokenPage = {
 
 const BLOCKSCOUT_API: Partial<Record<ChainType, string>> = {
   ETH: 'https://eth.blockscout.com/api/v2',
+  BSC: 'https://bsc.blockscout.com/api/v2',
   POLYGON: 'https://polygon.blockscout.com/api/v2',
   ARBITRUM: 'https://arbitrum.blockscout.com/api/v2',
+  BASE: 'https://base.blockscout.com/api/v2',
 };
 const EVM_NATIVE: Partial<Record<ChainType, { symbol: string; name: string }>> = {
   ETH: { symbol: 'ETH', name: 'Ethereum' },
@@ -30,7 +32,7 @@ const EVM_NATIVE: Partial<Record<ChainType, { symbol: string; name: string }>> =
 const SOLANA_RPCS = ['https://api.mainnet-beta.solana.com', 'https://solana-rpc.publicnode.com'];
 const ROUTESCAN_API = 'https://api.routescan.io/v2/network/mainnet/evm/56';
 const BASE_ROUTESCAN_API = 'https://api.routescan.io/v2/network/mainnet/evm/8453';
-const BSC_RPCS = ['https://bsc-dataseed.bnbchain.org', 'https://bsc-dataseed-public.bnbchain.org'];
+const BSC_RPCS = ['https://bsc-rpc.publicnode.com', 'https://bsc-dataseed.bnbchain.org', 'https://bsc-dataseed-public.bnbchain.org'];
 const SOLANA_TOKEN_PROGRAMS = [
   'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
   'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
@@ -51,11 +53,57 @@ export class PublicWalletIndexer implements WalletIndexer {
   async scan({ chain, address }: WalletScanRequest): Promise<IndexedWalletAsset[]> {
     if (chain === 'SOL') return this.scanSolana(address);
     if (chain === 'BTC') return this.scanBitcoin(address);
-    if (chain === 'BSC') return this.scanBsc(address);
-    if (chain === 'BASE') return this.scanRoutescanEvm('BASE', address, BASE_ROUTESCAN_API);
     const baseUrl = BLOCKSCOUT_API[chain];
     if (!baseUrl) throw new Error(`Chưa cấu hình nguồn quét token cho mạng ${chain}.`);
+    if (chain === 'BSC') {
+      return this.scanEvmWithFallback(chain, address,
+        () => this.scanRoutescanEvm('BSC', address, ROUTESCAN_API),
+        () => this.scanBlockscout(chain, address, baseUrl),
+      );
+    }
+    if (chain === 'BASE') {
+      return this.scanEvmWithFallback(chain, address,
+        () => this.scanRoutescanEvm('BASE', address, BASE_ROUTESCAN_API),
+        () => this.scanBlockscout(chain, address, baseUrl),
+      );
+    }
     return this.scanBlockscout(chain, address, baseUrl);
+  }
+
+  /**
+   * Public explorer APIs occasionally rate-limit or return malformed pages. A
+   * failed token-indexer must not make a valid native balance disappear. For
+   * BSC/Base retry against an independent explorer. An empty fallback is
+   * deliberately treated as a failure so a token-only wallet is never
+   * reported as empty or used to deactivate a known-good asset snapshot.
+   */
+  private async scanEvmWithFallback(
+    chain: 'BSC' | 'BASE',
+    address: string,
+    primary: () => Promise<IndexedWalletAsset[]>,
+    fallback: () => Promise<IndexedWalletAsset[]>,
+  ): Promise<IndexedWalletAsset[]> {
+    try {
+      return await primary();
+    } catch (primaryError) {
+      try {
+        const assets = await fallback();
+        if (assets.length > 0) {
+          console.warn(`Primary ${chain} wallet indexer failed; using fallback provider.`, primaryError);
+          return assets;
+        }
+      } catch (fallbackError) {
+        throw new Error(`Không quét được ví ${chain}. Nguồn chính: ${this.errorMessage(primaryError)}. Nguồn dự phòng: ${this.errorMessage(fallbackError)}.`);
+      }
+      // An independent provider returning no rows cannot prove that a
+      // token-only wallet is empty. Preserve the original provider error so
+      // the sync service retains the last known-good asset snapshot.
+      throw primaryError;
+    }
+  }
+
+  private errorMessage(error: unknown) {
+    return error instanceof Error ? error.message : String(error);
   }
 
   private async fetchJson(url: string, init?: RequestInit) {
@@ -184,10 +232,6 @@ export class PublicWalletIndexer implements WalletIndexer {
       }
     }
     throw new Error(`Không lấy được native balance ${chain}: ${String(lastError ?? 'RPC không phản hồi')}`);
-  }
-
-  private async scanBsc(address: string): Promise<IndexedWalletAsset[]> {
-    return this.scanRoutescanEvm('BSC', address, ROUTESCAN_API);
   }
 
   private async scanRoutescanEvm(chain: 'BSC' | 'BASE', address: string, apiBase: string): Promise<IndexedWalletAsset[]> {
