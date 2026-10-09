@@ -1,6 +1,7 @@
 import { MarketTicker, OHLCVPoint } from './types';
 import { normalizeChartSymbol } from './market/chart-symbol';
 import { fetchCoinGeckoOhlc } from './market/coingecko-ohlc';
+import { searchCoinGeckoAssets } from './market/coingecko-search';
 
 // In-memory cache for live market data
 let cachedTickers: MarketTicker[] = [];
@@ -227,11 +228,13 @@ export async function getLiveTickers(): Promise<MarketTicker[]> {
  */
 export async function searchTickerLive(query: string): Promise<
   Array<{
+    id?: string;
     symbol: string;
     name: string;
-    priceUsd: number;
-    change24h: number;
+    priceUsd: number | null;
+    change24h: number | null;
     volume24h: number;
+    source?: string;
   }>
 > {
   const clean = query.trim().toUpperCase();
@@ -247,13 +250,23 @@ export async function searchTickerLive(query: string): Promise<
       t.name.toUpperCase().includes(clean)
   );
 
-  return matched.slice(0, 15).map((t) => ({
+  const exchangeMatches = matched.slice(0, 15).map((t) => ({
     symbol: t.symbol,
     name: t.name,
     priceUsd: t.priceUsd,
     change24h: t.priceChange24h,
     volume24h: t.volume24hUsd,
+    source: 'Exchange',
   }));
+  const catalogMatches = await searchCoinGeckoAssets(query);
+  const combined = [...catalogMatches, ...exchangeMatches];
+  const seen = new Set<string>();
+  return combined.filter((asset) => {
+    const identity = `${asset.symbol}:${asset.name.toLowerCase()}`;
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  }).slice(0, 30);
 }
 
 /**

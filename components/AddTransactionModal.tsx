@@ -66,7 +66,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   // Live search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<
-    Array<{ symbol: string; name: string; priceUsd: number; change24h: number }>
+    Array<{ id?: string; symbol: string; name: string; priceUsd: number | null; change24h: number | null; source?: string }>
   >([]);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -78,7 +78,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
       const data = await res.json();
       if (data.results && data.results.length > 0) {
         const match = data.results.find((r: any) => r.symbol === ticker) || data.results[0];
-        setPricePerCoin(String(match.priceUsd));
+        if (typeof match.priceUsd === 'number' && match.priceUsd > 0) setPricePerCoin(String(match.priceUsd));
         setCoinName(match.name);
       }
     } catch (e) {
@@ -130,7 +130,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     if (price && price > 0) {
       setPricePerCoin(String(price));
     } else {
-      fetchLivePrice(sym);
+      setPricePerCoin('');
     }
   };
 
@@ -252,9 +252,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                   <CommandEmpty>Không tìm thấy ticker phù hợp.</CommandEmpty>
                 ) : visibleResults.map((item) => (
                   <CommandItem
-                    key={item.symbol}
-                    value={item.symbol}
-                    onSelect={() => handleSelectTicker(item.symbol, item.name, item.priceUsd)}
+                    key={`${item.id ?? item.symbol}:${item.name}`}
+                    value={`${item.symbol} ${item.name}`}
+                    onSelect={() => handleSelectTicker(item.symbol, item.name, item.priceUsd ?? undefined)}
                     className="justify-between gap-4 px-3 py-2"
                   >
                     <div className="flex min-w-0 items-center gap-2">
@@ -262,9 +262,9 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
                       <span className="max-w-[140px] truncate text-[11px] text-muted-foreground">{item.name}</span>
                     </div>
                     <div className="shrink-0 text-right font-mono">
-                      <div className="font-semibold text-foreground">${item.priceUsd < 1 ? item.priceUsd.toFixed(6) : item.priceUsd.toLocaleString()}</div>
-                      <div className={`text-[10px] ${item.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {item.change24h >= 0 ? '+' : ''}{item.change24h}%
+                      <div className="font-semibold text-foreground">{item.priceUsd === null ? 'Chưa có giá' : `$${item.priceUsd < 1 ? item.priceUsd.toFixed(6) : item.priceUsd.toLocaleString()}`}</div>
+                      <div className={`text-[10px] ${item.change24h === null ? 'text-muted-foreground' : item.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {item.change24h === null ? '—' : `${item.change24h >= 0 ? '+' : ''}${item.change24h}%`}
                       </div>
                     </div>
                   </CommandItem>

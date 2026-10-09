@@ -52,7 +52,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
   const [showAddCoinModal, setShowAddCoinModal] = useState(false);
   const [addSearchQuery, setAddSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<
-    Array<{ symbol: string; name: string; priceUsd: number; change24h: number }>
+    Array<{ id?: string; symbol: string; name: string; priceUsd: number | null; change24h: number | null; source?: string }>
   >([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
@@ -117,7 +117,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
     });
   };
 
-  const handleAddCoinToWatchlist = async (coin: { symbol: string; name: string; priceUsd: number; change24h: number }) => {
+  const handleAddCoinToWatchlist = async (coin: { symbol: string; name: string; priceUsd: number | null; change24h: number | null; id?: string }) => {
     setIsAdding(true);
     setAddSuccessMsg('');
     try {
@@ -437,7 +437,7 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                 ) : (
                   searchResults.map((coin) => (
                     <div
-                      key={coin.symbol}
+                      key={`${coin.id ?? coin.symbol}:${coin.name}`}
                       onClick={() => handleAddCoinToWatchlist(coin)}
                     className="flex cursor-pointer items-center justify-between rounded-md border bg-card p-2.5 transition-colors hover:bg-accent"
                     >
@@ -448,15 +448,14 @@ export const MarketWatchlist: React.FC<MarketWatchlistProps> = ({
                       <div className="flex items-center space-x-3 text-right">
                         <div>
                           <div className="font-mono text-xs font-semibold text-foreground">
-                            ${coin.priceUsd.toLocaleString()}
+                            {coin.priceUsd === null ? 'Chưa có giá' : `$${coin.priceUsd.toLocaleString()}`}
                           </div>
                           <div
                             className={`text-[10px] font-mono ${
-                              coin.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                              coin.change24h === null ? 'text-muted-foreground' : coin.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400'
                             }`}
                           >
-                            {coin.change24h >= 0 ? '+' : ''}
-                            {coin.change24h.toFixed(2)}%
+                            {coin.change24h === null ? '—' : `${coin.change24h >= 0 ? '+' : ''}${coin.change24h.toFixed(2)}%`}
                           </div>
                         </div>
                         <Button type="button" size="sm" disabled={isAdding} onClick={() => handleAddCoinToWatchlist(coin)}>
