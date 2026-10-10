@@ -1,45 +1,73 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-
-import { Bell, LogOut, Menu, Moon, Plus, RefreshCw, Sun } from 'lucide-react';
+import React from 'react';
+import { Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { cn } from '@/lib/utils';
 
-export function AppHeader({ title, baseCurrency, onBaseCurrencyChange, onMenu, onRefresh, onAddTransaction, onOpenAlerts, onLogout }: { title: string; baseCurrency?: 'USD' | 'VND'; onBaseCurrencyChange?: (currency: 'USD' | 'VND') => void; onMenu: () => void; onRefresh?: () => void; onAddTransaction?: () => void; onOpenAlerts?: () => void; onLogout?: () => void }) {
-  const [darkMode, setDarkMode] = useState(false);
+export interface AppHeaderProps {
+  title: string;
+  username?: string;
+  avatarIcon?: string;
+  onOpenSettings: () => void;
+  className?: string;
+  // Optional legacy props maintained for interface safety
+  baseCurrency?: 'USD' | 'VND';
+  onBaseCurrencyChange?: (currency: 'USD' | 'VND') => void;
+  onMenu?: () => void;
+  onRefresh?: () => void;
+  onAddTransaction?: () => void;
+  onOpenAlerts?: () => void;
+  onLogout?: () => void;
+}
 
-  useEffect(() => {
-    const savedTheme = window.localStorage.getItem('theme');
-    const dark = savedTheme === 'dark';
-    setDarkMode(dark);
-    document.documentElement.classList.toggle('dark', dark);
-  }, []);
+export function AppHeader({
+  title,
+  username = 'Shun',
+  onOpenSettings,
+  className,
+}: AppHeaderProps) {
+  const initials = (username || 'Shun').slice(0, 2).toUpperCase();
 
-  const toggleTheme = () => {
-    const nextDark = !darkMode;
-    setDarkMode(nextDark);
-    document.documentElement.classList.toggle('dark', nextDark);
-    window.localStorage.setItem('theme', nextDark ? 'dark' : 'light');
-  };
+  return (
+    <header className={cn('glass-nav sticky top-2 z-30 mx-3 mt-2 flex h-16 items-center justify-between rounded-[1.5rem] px-3 sm:px-4 md:hidden', className)}>
+      {/* Mobile Top Header: User avatar nhỏ nhỏ cùng username bên trái */}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onOpenSettings}
+          className="group flex items-center gap-2 rounded-2xl p-1 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Hồ sơ ${username}`}
+          title="Mở cài đặt hồ sơ"
+        >
+          <Avatar className="size-8 ring-2 ring-primary/20 shadow-sm transition-transform group-hover:scale-105">
+            <AvatarFallback className="bg-slate-400 font-bold text-xs text-white dark:bg-slate-600">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <div className="text-left leading-tight">
+            <span className="block max-w-[100px] truncate text-xs font-semibold sm:max-w-[140px] sm:text-sm">
+              {username}
+            </span>
 
-  return <header className="glass-nav sticky top-2 z-30 mx-3 mt-2 flex min-h-16 flex-wrap items-center gap-x-3 gap-y-2 rounded-[1.5rem] px-2.5 py-2 sm:px-4 md:top-4 md:mx-0 md:mt-0 md:h-16 md:flex-nowrap md:px-5 md:py-0">
-    <div className="flex w-full min-w-0 items-center gap-2 md:w-auto">
-      <Button variant="ghost" size="icon" className="size-11 shrink-0 md:hidden" aria-label="Mở điều hướng" onClick={onMenu}><Menu className="size-5" /></Button>
-      <div className="min-w-0"><p className="hidden text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground sm:block">Tổng quan cá nhân</p><h1 className="truncate text-base font-semibold tracking-tight md:text-lg">{title}</h1></div>
-    </div>
-    <div className="flex w-full min-w-0 items-center justify-between gap-1 md:ml-auto md:w-auto md:justify-end md:gap-2">
-      {baseCurrency && onBaseCurrencyChange && <Tabs value={baseCurrency} onValueChange={(value) => onBaseCurrencyChange(value as 'USD' | 'VND')}>
-        <TabsList aria-label="Đơn vị tiền tệ hiển thị" className="h-11 shrink-0 sm:h-9">
-          <TabsTrigger value="USD" className="min-h-9 px-2 text-xs">USD</TabsTrigger>
-          <TabsTrigger value="VND" className="min-h-9 px-2 text-xs">VND</TabsTrigger>
-        </TabsList>
-      </Tabs>}
-      <Button variant="ghost" size="icon" className="size-11 shrink-0 sm:size-10" aria-label={darkMode ? 'Chuyển sang giao diện sáng' : 'Chuyển sang giao diện tối'} title={darkMode ? 'Giao diện sáng' : 'Giao diện tối'} onClick={toggleTheme}>{darkMode ? <Sun className="size-4" /> : <Moon className="size-4" />}</Button>
-      {onOpenAlerts && <Button variant="ghost" size="icon" className="size-11 shrink-0 sm:size-10" aria-label="Cảnh báo Telegram" title="Cảnh báo Telegram" onClick={onOpenAlerts}><Bell className="size-4" /></Button>}
-      {onAddTransaction && <Button size="sm" className="size-11 shrink-0 p-0 md:h-8 md:w-auto md:px-3" aria-label="Giao dịch" onClick={onAddTransaction}><Plus className="size-4" /><span className="hidden sm:inline">Giao dịch</span></Button>}
-      {onRefresh && <Button variant="outline" size="sm" className="size-11 shrink-0 p-0 md:h-8 md:w-auto md:px-3" aria-label="Đồng bộ dữ liệu" title="Đồng bộ dữ liệu" onClick={onRefresh}><RefreshCw className="size-4" /><span className="hidden sm:inline">Đồng bộ</span></Button>}
-      {onLogout && <Button variant="ghost" size="icon" className="size-11 shrink-0 sm:size-10" aria-label="Đăng xuất" title="Đăng xuất" onClick={onLogout}><LogOut className="size-4" /></Button>}
-    </div>
-  </header>;
+          </div>
+        </button>
+      </div>
+
+      {/* Mobile Top Header: Nút Settings (cog) bên phải */}
+      <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-10 shrink-0 rounded-2xl"
+          aria-label="Cài đặt"
+          title="Cài đặt"
+          onClick={onOpenSettings}
+        >
+          <Settings className="size-5" />
+        </Button>
+      </div>
+    </header>
+  );
 }
